@@ -113,14 +113,14 @@ class BaseImporter(object):
 
     batch_source_name = ''
     """
-    The name of the source which the data is retrieved from. E.g.: for ADTECH
-    SGS records, this is ``'adtech_sgs'`` and for API data ``'adtech_api'``.
+    The name of the source which the data is retrieved from. E.g.: for AdWords,
+    this this could be something like ``'adwords_api'``.
     """
 
     batch_source_type_name = ''
     """
-    The type of data that is imported from the source. E.g.: for ADTECH SGS
-    records, this can be ``'ga3'``, ``'gl3'``, ...
+    The type of data that is imported from the source. E.g.: for the AdWords
+    API, this could be something like ``ADGROUP_PERFORMANCE_REPORT``.
     """
 
     mapping_list = ()
