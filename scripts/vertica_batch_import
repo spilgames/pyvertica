@@ -1,0 +1,195 @@
+#!/usr/bin/env python
+
+import argparse
+import codecs
+import logging
+
+from logutils.dictconfig import dictConfig
+
+from pyvertica.batch import VerticaBatch
+
+
+logger = logging.getLogger('vertica_batch_import')
+
+
+parser = argparse.ArgumentParser(description='Vertica batch importer')
+parser.add_argument(
+    '--commit',
+    dest='commit',
+    action='store_true',
+    help='commit after import (without it will perform a dry-run)',
+)
+parser.add_argument(
+    '--partial-commit-after',
+    dest='partial_commit_after',
+    type=int,
+    default=1000000,
+    help='partial commit after num of lines (default: 1000000)',
+)
+parser.add_argument(
+    '--log',
+    dest='log_level',
+    choices=['debug', 'info', 'warning', 'error', 'critical'],
+    default='info',
+    help='loglevel of loghandler (default: info)',
+)
+parser.add_argument(
+    '--truncate-table',
+    dest='truncate_table',
+    action='store_true',
+    help='truncate table before import',
+)
+parser.add_argument(
+    '--delimiter',
+    dest='delimiter',
+    type=str,
+    default=';',
+    help='delimiter to split columns (default: ;)',
+)
+parser.add_argument(
+    '--enclosed-by',
+    dest='enclosed_by',
+    type=str,
+    default='"',
+    help='the quote character (default: ")',
+)
+parser.add_argument(
+    '--skip',
+    dest='skip',
+    type=int,
+    default=0,
+    help='number of lines to skip (default: 0)',
+)
+parser.add_argument(
+    '--null',
+    dest='null',
+    type=str,
+    default='',
+    help='represents a null value (default: empty string)',
+)
+parser.add_argument(
+    '--record-terminator',
+    dest='record_teminator',
+    type=str,
+    default='\n',
+    help='specifies the end of a record (default: newline)',
+)
+parser.add_argument(
+    'dsn',
+    type=str,
+    help='ODBC data source name',
+)
+parser.add_argument(
+    'table_name',
+    type=str,
+    help='name of table (including schema, eg: staging.my_table)',
+)
+parser.add_argument(
+    'file_path',
+    type=str,
+    help='absolute path to the file to import'
+)
+
+
+def setup_log_handler(args_obj):
+    """
+    Setup log handler for displaying output in console.
+
+    :param args_obj:
+        Parsed args object (return of
+        :py:meth:`!argparse.ArgumentParser.parse_args`).
+
+    """
+    dictConfig({
+        'version': 1,
+        'disable_existing_loggers': False,
+        'root': {
+            'level': 'DEBUG',
+            'handlers': ['console'],
+        },
+        'formatters': {
+            'verbose': {'format':
+                '%(asctime)s %(levelname)s:%(name)s: %(message)s'}
+        },
+        'handlers': {
+            'console': {
+                'level': args_obj.log_level.upper(),
+                'class': 'logging.StreamHandler',
+                'formatter': 'verbose',
+            }
+        }
+    })
+
+
+def handle_import(args_obj):
+    """
+    Handle the batch import.
+
+    :param args_obj:
+        Parsed args object (return of
+        :py:meth:`!argparse.ArgumentParser.parse_args`)
+
+    """
+    # do not truncate if we do not commit
+    truncate_table = args_obj.truncate_table
+    if not args_obj.commit:
+        logger.warning('Will perform dry-run! (you did not use --commit)')
+        truncate_table = False
+
+    try:
+        batch = VerticaBatch(
+            dsn=args_obj.dsn,
+            table_name=args_obj.table_name,
+            truncate_table=truncate_table,
+            copy_options={
+                'ENCLOSED BY': args_obj.enclosed_by,
+                'SKIP': args_obj.skip,
+                'DELIMITER': args_obj.delimiter,
+                'NULL': args_obj.null,
+                'RECORD TERMINATOR': args_obj.record_teminator,
+            }
+        )
+
+        with codecs.open(args_obj.file_path, 'r', 'utf-8') as file_obj:
+            for line in iter((lambda: file_obj.read(1024 * 1024)), ''):
+                batch.insert_raw(line)
+
+                if not batch.get_batch_count() % args_obj.partial_commit_after:
+                    logger.info(
+                        'Reached {0} lines, performing a commit'.format(
+                            args_obj.partial_commit_after))
+                    handle_errors(*batch.get_errors())
+                    if args_obj.commit:
+                        batch.commit()
+
+        logger.info('Reached end of import, performing a commit')
+        handle_errors(*batch.get_errors())
+
+        if args_obj.commit:
+            batch.commit()
+
+    except Exception as e:
+        logger.exception(str(e))
+
+
+def handle_errors(errors_bool, errors_file_obj):
+    """
+    Print errors to log.
+
+    :param errors_bool:
+        A ``bool`` indicating if there were errors.
+
+    :param errors_file_obj:
+        A file-like object, containing the errors in plain-text.
+
+    """
+    if errors_bool:
+        for error_line in errors_file_obj:
+            logger.error('Batch error: {0}'.format(
+                error_line.rstrip('\r\n')))
+
+
+if __name__ == '__main__':
+    args_obj = parser.parse_args()
+    setup_log_handler(args_obj)
+    handle_import(args_obj)

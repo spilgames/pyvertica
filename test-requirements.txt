@@ -1,0 +1,15 @@
+# Requirements
+argparse
+logutils
+pyodbc==3.0.3
+
+
+# Documentation
+sphinx
+
+
+# Testing
+coverage
+mock
+pep8==1.2
+unittest2
