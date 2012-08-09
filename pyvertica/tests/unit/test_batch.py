@@ -5,7 +5,7 @@ import stat
 import tempfile
 import unittest2 as unittest
 
-from mock import Mock, call, patch
+from mock import Mock, patch
 
 from pyvertica.batch import (
     QueryThread, VerticaBatch, require_started_batch)
@@ -180,7 +180,7 @@ class VerticaBatchTestCase(unittest.TestCase):
         # test files
         self.assertTrue(stat.S_ISFIFO(os.stat(batch._fifo_path).st_mode))
         self.assertTrue(os.path.exists(batch._rejected_file_obj.name))
-        codecs.open.assert_called_once_with(batch._fifo_path, 'a+', 'utf-8')
+        codecs.open.assert_called_once_with(batch._fifo_path, 'w', 'utf-8')
         self.assertEqual(codecs.open.return_value, batch._fifo_obj)
 
         # test thread setup
@@ -200,10 +200,9 @@ class VerticaBatchTestCase(unittest.TestCase):
         )
         batch._query_thread.start.assert_called_once_with()
 
-    @patch('pyvertica.batch.VerticaBatch._start_batch')
-    @patch('pyvertica.batch.time')
     @patch('pyvertica.batch.get_connection')
-    def test__end_batch_clean(self, get_connection, time, start_batch):
+    @patch('pyvertica.batch.VerticaBatch._start_batch')
+    def test__end_batch_clean(self, start_batch, get_connection):
         """
         Test :py:meth:`.VerticaBatch._end_batch` ending clean.
 
@@ -211,9 +210,6 @@ class VerticaBatchTestCase(unittest.TestCase):
         to actually wait.
 
         """
-        cursor = get_connection.return_value.cursor.return_value
-        cursor.execute.return_value.fetchone.side_effect = [None, None, 1]
-
         query_thread = Mock()
         query_thread.is_alive.return_value = False
 
@@ -223,15 +219,6 @@ class VerticaBatchTestCase(unittest.TestCase):
         batch._query_thread = query_thread
 
         end_return = batch._end_batch()
-
-        self.assertEqual(
-            [call('TestDSN'), call('TestDSN')], get_connection.call_args_list)
-        cursor.execute.assert_called_with(
-            "SELECT 1 FROM v_monitor.sessions "
-            "WHERE current_statement LIKE '%COPY%schema.test_table%'"
-        )
-        self.assertEqual(3, cursor.execute.call_count)
-        self.assertEqual(3, cursor.execute.return_value.fetchone.call_count)
 
         batch._fifo_obj.close.assert_called_once_with()
         batch._query_thread_semaphore_obj.acquire.assert_called_once_with()

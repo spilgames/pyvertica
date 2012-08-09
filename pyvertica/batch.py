@@ -207,7 +207,6 @@ class VerticaBatch(object):
         # create FIFO
         self._fifo_path = os.path.join(tempfile.mkdtemp(), 'fifo')
         os.mkfifo(self._fifo_path)
-        self._fifo_obj = codecs.open(self._fifo_path, 'a+', 'utf-8')
 
         # create rejected file obj
         self._rejected_file_obj = tempfile.NamedTemporaryFile(bufsize=0)
@@ -221,6 +220,9 @@ class VerticaBatch(object):
         )
         self._query_thread.start()
 
+        logger.debug('Opening FIFO')
+        self._fifo_obj = codecs.open(self._fifo_path, 'w', 'utf-8')
+
         logger.info('Batch started')
 
     @require_started_batch
@@ -232,27 +234,6 @@ class VerticaBatch(object):
 
         """
         ended_clean = True
-
-        # Trying to synchronize: we need to *not* close the fifo before COPY
-        # starts. Unfortunately, there is no way to synchronise on this
-        # particular event, because things could happen between a semaphore
-        # relase and the COPY starts. Furthermore, closing the fifo is the
-        # action that stops the copy, we cannot thus enclose the LOCPY in sema.
-
-        # Note: trying to see if there is a COPY statement running does not
-        # work with one connection only: statements are not executed in
-        # parallel, but one after the other, so the COPY blocks the check,
-        # even with distinct cursors Check with a new connection.
-        # This works fine with version 4.1 of the driver
-        new_cursor = get_connection(self._dsn).cursor()
-        while not new_cursor.execute(
-                    "SELECT 1 FROM v_monitor.sessions "
-                    "WHERE current_statement LIKE '%COPY%{0}%'".format(
-                        self._table_name)
-                ).fetchone():
-            logger.debug('Waiting for session to complete')
-            time.sleep(1)
-        time.sleep(1)
 
         logger.debug('Closing FIFO')
         self._fifo_obj.close()
