@@ -34,6 +34,15 @@ Installation
 Changes
 -------
 
+v1.2.0
+~~~~~~
+
+* **CHANGE**: Change the way in how we detect if the FIFO object is consumed
+  by the QueryThread. By opening the FIFO object (for writing) in ``'w'`` mode
+  after the QueryThread was created, it will block until the COPY SQL statement
+  is started.
+
+
 v1.1.2
 ~~~~~~
 
