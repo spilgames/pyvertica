@@ -1,0 +1,93 @@
+#!/usr/bin/env python
+
+import argparse
+import logging
+
+from logutils.dictconfig import dictConfig
+from pyvertica.migrate import VerticaMigrator
+
+parser = argparse.ArgumentParser(description='Vertica Migrator')
+parser.add_argument(
+    '--commit',
+    dest='commit',
+    action='store_true',
+    help='commit DDLS and copy data (without it will perform a dry-run)',
+)
+
+parser.add_argument(
+    '--target_port',
+    dest='target_port',
+    default='5433',
+    help='Optional, port of the target as accessible from the source.'
+)
+
+parser.add_argument(
+    '--target_host',
+    dest='target_host',
+    default=None,
+    help='Optional, host of the target as accessible by the source.'
+)
+
+
+parser.add_argument(
+    '--target_pwd',
+    dest='target_pwd',
+    help='Password of the target vertica, using the DSN of target.',
+)
+
+parser.add_argument(
+    'source',
+    type=str,
+    help='ODBC data source name',
+)
+
+parser.add_argument(
+    '--log',
+    dest='log_level',
+    choices=['debug', 'info', 'warning', 'error', 'critical'],
+    default='info',
+    help='loglevel of loghandler (default: info)',
+)
+parser.add_argument(
+    'target',
+    type=str,
+    help='ODBC data source name',
+)
+
+
+def setup_log_handler(args):
+    """
+    Setup log handler for displaying output in console.
+
+    :param args_obj:
+        Parsed args object (return of
+        :py:meth:`!argparse.ArgumentParser.parse_args`).
+
+    """
+    dictConfig({
+        'version': 1,
+        'disable_existing_loggers': False,
+        'root': {
+            'level': 'DEBUG',
+            'handlers': ['console'],
+        },
+        'formatters': {
+            'verbose': {'format':
+                '%(asctime)s %(levelname)s:%(name)s: %(message)s'}
+        },
+        'handlers': {
+            'console': {
+                'level': args.log_level.upper(),
+                'class': 'logging.StreamHandler',
+                'formatter': 'verbose',
+            }
+        }
+    })
+
+
+if __name__ == '__main__':
+    args = parser.parse_args()
+    setup_log_handler(args)
+    migrator = VerticaMigrator(args.source, args.target, args.commit, args)
+    #migrator.migrate_ddls()
+    migrator.migrate_data()
