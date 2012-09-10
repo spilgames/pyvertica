@@ -1,9 +1,21 @@
+import argparse
 import logging
 import re
+import subprocess
+from subprocess import CalledProcessError
+import tempfile
 
-from pyvertica.connection import get_connection
+from pyvertica.connection import get_connection, connection_details
 
 logger = logging.getLogger(__name__)
+
+
+class VerticaMigratorException(Exception):
+    def __init__(self, value):
+        self.value = value
+
+    def __str__(self):
+        return repr(self.value)
 
 
 class VerticaMigrator(object):
@@ -34,7 +46,7 @@ class VerticaMigrator(object):
 
     # regexp to find identity in the CREATE TABLE with IDENTITY statements
     # eg: CREATE TABLE schema.table ... colname IDENTITY...
-    # Note: it is not possible to get more than one iDENTITY per table
+    # Note: it is not possible to get more than one IDENTITY per table
     _find_identity = re.compile(
         '^\s*CREATE TABLE\s+(?P<schema>.*?)\.(?P<table>.*?)\s+.*^\s*(?P<col>.*?)\s+IDENTITY\s*,\s*$',
         re.MULTILINE + re.DOTALL)
@@ -42,68 +54,108 @@ class VerticaMigrator(object):
     # check if we are creating a PROJECTION
     _find_proj = re.compile('^\s*CREATE PROJECTION.*')
 
-    def __init__(self, source, target, commit=False, args={}):
+    def __init__(self, source, target, commit=False, args=argparse.Namespace()):
         logger.debug(
             'Initializing VerticaMigrator from {0} to {1}'.format(source, target)
             )
 
-        self._source = source
-        self._target = target
+        self._source_dsn = source
+        self._target_dsn = target
         self._commit = commit
         self._args = args
 
-        # setup db connection
-        self._source_db = get_connection(self._source)
-        self._source = self._source_db.cursor()
+        self._set_connections()
+
+        self._sanity_checks()
+
+    def _set_connections(self):
+        """
+        Setup db connections
+        """
+
+        self._source_con = get_connection(self._source_dsn)
+        self._source = self._source_con.cursor()
         self._source_ip = self._source.execute(
             "SELECT n.node_address FROM v_monitor.current_session cs "
             "JOIN v_catalog.nodes n ON n.node_name=cs.node_name"
             ).fetchone()[0]
 
-        self._target_db = get_connection(self._target)
-        self._target = self._target_db.cursor()
+        self._target_con = get_connection(self._target_dsn)
+        self._target = self._target_con.cursor()
         self._target_ip = self._target.execute(
             "SELECT n.node_address FROM v_monitor.current_session cs "
             "JOIN v_catalog.nodes n ON n.node_name=cs.node_name"
             ).fetchone()[0]
 
+    def _sanity_checks(self):
+        """
+        """
         # copying from and to the same server is probably a bad idea, but let's
-        # give the benefit of the doubt
+        # give the benefit of the doubt and check the DB
         if self._source_ip == self._target_ip:
-            target_db = self._target.execute(
-                'SELECT CURRENT_DATABASE'
-                ).fetchone()[0]
-            source_db = self._source.execute(
-                'SELECT CURRENT_DATABASE'
-                ).fetchone()[0]
+            target_db = self._target.execute('SELECT CURRENT_DATABASE').fetchone()[0]
+            source_db = self._source.execute('SELECT CURRENT_DATABASE').fetchone()[0]
             if target_db == source_db:
-                logger.exception(
+                raise VerticaMigratorException(
                     "Source and target database are the same. Will stop here."
                     )
+            else:
+                logger.info('Copying inside the same server to another DB.')
 
         # let's not copy over a not empty database
         is_target_empty = self._target.execute(
             "SELECT count(*) FROM tables WHERE is_system_table=false AND is_temp_table=false"
             ).fetchone()[0]
+
         if is_target_empty > 0:
-            logger.exception(
-                "Target vertica is not empty."
-            )
+            if 'even_not_empty' in self._args and self._args.even_not_empty:
+                logger.info('Target DB not empty but copy anyway.')
+            else:
+                raise VerticaMigratorException("Target vertica is not empty.")
 
     def _get_ddls(self):
         """
         Query the source vertica to get the DDLs as a big string, using the
         EXPORT_OBJECTS function.
 
+        It happens that this function returns None from odbc. In that case
+        vsql is used, and the --source_pwd parameters becomes useful.
+
         :return:
             A ``str`` containg the DDLs.
         """
-        ddls = self._source.execute("SELECT EXPORT_OBJECTS('', '', False)"
-            ).fetchone()[0]
+        logger.info('Getting DDLs...')
+        from_db = self._source.execute("SELECT EXPORT_OBJECTS('', '', False)").fetchone()
 
-        if ddls is None or ddls == '':
-            logger.exception("No ddls found. Todo: target vsql")
+        if from_db is None:
+            details = connection_details(self._source_con)
 
+            if 'source_pwd' in self._args and self._args.source_pwd is not None:
+                details['pwd'] = self._args.source_pwd
+            else:
+                details['pwd'] = ''
+
+            err = tempfile.TemporaryFile()
+            try:
+                ddls = subprocess.check_output([
+                    '/opt/vertica/bin/vsql',
+                    '-U', details['user'],
+                    '-h', details['host'],
+                    '-d', details['db'],
+                    '-t',  # rows only
+                    '-w',  details['pwd'],
+                    '-c',  "SELECT EXPORT_OBJECTS('', '', False)"
+                    ], stderr=err)
+            except CalledProcessError as e:
+                err.seek(0)
+                raise VerticaMigratorException("""
+                    Could not use vsql to get ddls: {0}.
+                    Output was: {1}
+                    """.format(e, err.read()))
+        else:
+            ddls = from_db.fetchone()[0]
+
+        logger.info('Got DDLs' + ' (From vsql)' if from_db is None else '')
         return ddls
 
     def _uses_sequence(self, ddl):
@@ -237,14 +289,15 @@ class VerticaMigrator(object):
         """
         ddls = self._get_ddls()
 
-        for ddl in ddls.split(';'):
+        logger.info('Migrating DDLs...')
+        for count, ddl in enumerate(ddls.split(';')):
             ddl = ddl.strip()
 
             # pyodbc or vertica statement hangs when executing ''
             if ddl == '' or ddl is None:
                 continue
 
-            # do not bother with copyoing projections over
+            # do not bother with copying projections over
             if self._is_proj(ddl):
                 continue
 
@@ -258,7 +311,7 @@ class VerticaMigrator(object):
                 ddl, new_seq = self._replace_identity(ddl)
 
             # for display only: 1st line of statement, to display object name
-            logger.debug(ddl.split('\n', 1)[0])
+            logger.warning(ddl.split('\n', 1)[0])
 
             if self._commit:
                 self._target.execute(ddl)
@@ -281,29 +334,29 @@ class VerticaMigrator(object):
                 logger.debug(alter)
                 if self._commit:
                     self._target.execute(alter)
+        logger.info('{0} DDLs migrated'.format(count))
 
     def migrate_data(self):
         """
         """
+        logger.warning('Starting migrating data.')
+        details = connection_details(self._target)
 
-        user = self._target.execute('select CURRENT_USER()').fetchone()[0]
-        # If we are playing with tunnels...
         if self._args.target_host is not None:
-            host = self._args.target_host
-        else:
-            host = self._target.execute("select node_address FROM nodes WHERE node_state='UP' LIMIT 1").fetchone()[0]
-        db = self._target.execute('select CURRENT_DATABASE()').fetchone()[0]
-        pwd = self._args.target_pwd
-        port = self._args.target_port
+            details['host'] = self._args.target_host
 
-        self._source.execute(
-            "CONNECT TO VERTICA {db} USER {user} PASSWORD '{pwd}' ON '{host}',{port}".format(
-                db=db,
-                user=user,
-                host=host,
-                pwd=pwd,
-                port=port)
-            )
+        details['pwd'] = self._args.target_pwd
+        details['port'] = self._args.target_port
+
+        connect = "CONNECT TO VERTICA {db} USER {user} PASSWORD '{pwd}' ON '{host}',{port}".format(
+                db=details['db'],
+                user=details['user'],
+                host=details['host'],
+                pwd=details['pwd'],
+                port=details['port'])
+        logger.warning(connect)
+        self._source.execute(connect)
+
         # as target and source should have the same shemas,
         # look at target to not screw up the source cursor
         self._target.execute("SELECT table_schema as s, table_name as t FROM tables where is_system_table=false and is_temp_table=false")
@@ -313,12 +366,12 @@ class VerticaMigrator(object):
             if row is None:
                 break
             sql = 'EXPORT TO VERTICA stgdwh.{s}.{t} FROM {s}.{t}'.format(s=row.s, t=row.t)
-            print sql
+            logger.warning(sql + '...')
             nbrows = 0
             if self._commit:
                 self._source.execute(sql)
                 nbrows = self._source.rowcount
-            print '%s rows exported.' % nbrows
+            logger.warning('%s rows exported.' % nbrows)
 
-        print 'All done, disconnect'
+        logger.info('All data exported, disconnect')
         self._source.execute('DISCONNECT stgdwh')

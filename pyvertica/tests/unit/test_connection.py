@@ -2,7 +2,7 @@ import unittest2 as unittest
 
 from mock import patch
 
-from pyvertica.connection import get_connection
+from pyvertica.connection import get_connection, connection_details
 
 
 class ModuleTestCase(unittest.TestCase):
@@ -19,3 +19,13 @@ class ModuleTestCase(unittest.TestCase):
         pyodbc.connect.assert_called_once_with(
             'DSN=VerticaSTG', foo='bar', bar='foo')
         self.assertEqual(pyodbc.connect.return_value, connection)
+
+    @patch('pyvertica.connection.get_connection')
+    def test_connection_details(self, con):
+        con.execute.return_value.fetchone.side_effect = [['h'], ['u'], ['d']]
+        details = connection_details(con)
+        self.assertEqual(details, {
+            'host':'h',
+            'user':'u',
+            'db':'d'
+            })

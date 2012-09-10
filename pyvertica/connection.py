@@ -28,3 +28,32 @@ def get_connection(dsn, **kwargs):
 
     """
     return pyodbc.connect('DSN={0}'.format(dsn), **kwargs)
+
+
+def connection_details(con):
+    """
+    Given one connection objects returns information about it.
+
+    Usage example:
+
+        from pyverti,ca.conenction import get_connection, connection_details
+
+        con = get_connection('VerticaSTG')
+        details = connection_details(con)
+
+        :param con:
+            A :py:func:`!pyodbc.connect` object # THIS IS WRONG
+
+        :return:
+            A ``dict`` of information, containing current user and host.
+    """
+    host = con.execute('''
+        SELECT n.node_address
+        FROM v_monitor.current_session cs
+        JOIN v_catalog.nodes n ON n.node_name=cs.node_name
+        ''').fetchone()[0]
+    return {
+        'host': host,
+        'user': con.execute('SELECT CURRENT_USER()').fetchone()[0],
+        'db': con.execute('SELECT CURRENT_DATABASE()').fetchone()[0],
+    }
