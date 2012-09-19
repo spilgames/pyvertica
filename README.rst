@@ -2,7 +2,7 @@ PyVertica
 =========
 
 This package contains tools for performing batch imports to the Vertica
-database. See ``docs`` folder for full documentation.
+database.
 
 
 Provided modules
@@ -29,6 +29,13 @@ Installation
 ------------
 
 *pyvertica* can be installing by executing ``pip install pyvertica``.
+
+
+Links
+-----
+
+* `documentation <http://packages.python.org/pyvertica/>`_
+* `source <http://github.com/spilgames/pyvertica/>`_
 
 
 Changes
