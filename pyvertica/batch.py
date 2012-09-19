@@ -3,7 +3,6 @@ import logging
 import os
 import tempfile
 import threading
-import time
 from functools import wraps
 
 from pyvertica.connection import get_connection

@@ -231,10 +231,9 @@ class VerticaBatchTestCase(unittest.TestCase):
 
     @patch('pyvertica.batch.os')
     @patch('pyvertica.batch.VerticaBatch._start_batch')
-    @patch('pyvertica.batch.time')
     @patch('pyvertica.batch.get_connection')
     def test__end_batch_dirty(
-            self, get_connection, time, start_batch, os_mock):
+            self, get_connection, start_batch, os_mock):
         """
         Test :py:meth:`.VerticaBatch._end_batch` ending 'dirty'.
         """
