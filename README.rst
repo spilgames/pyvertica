@@ -34,6 +34,13 @@ Installation
 Changes
 -------
 
+v1.2.1
+~~~~~~
+
+* **CHANGE**: The Batch-history table is now configurable in ``BaseImporter``.
+* **CHANGE**: ``get_connection`` selects a random node from the cluster
+  and returns a connection to that node.
+
 v1.2.0
 ~~~~~~
 

@@ -10,8 +10,14 @@ def get_connection(dsn, **kwargs):
         from pyvertica.connection import get_connection
 
 
-        connection = get_connection('VerticaSTG')
+        connection = get_connection('TestDSN')
         cursor = connection.cursor()
+
+    The connection will be made in two steps (with the assumption that you are
+    connection via a load-balancer). The first step is connecting to the
+    load-balancer and selecting a random node address. Then it will connect
+    to that specific node and return this connection instance. This is done
+    to avoid that all the data has to pass the load-balancer.
 
     .. note:: At this point it is expected that you have a ``odbc.ini`` file
         on your machine, defining the given ``dsn``.
@@ -27,7 +33,13 @@ def get_connection(dsn, **kwargs):
         Return an instance of :class:`!pyodbc.Connection`.
 
     """
-    return pyodbc.connect('DSN={0}'.format(dsn), **kwargs)
+    connection = pyodbc.connect('DSN={0}'.format(dsn), **kwargs)
+
+    if not 'servername' in kwargs:
+        return get_connection(
+            dsn, servername=_get_random_node_address(connection), **kwargs)
+
+    return connection
 
 
 def _get_random_node_address(connection):

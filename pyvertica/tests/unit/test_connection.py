@@ -1,6 +1,6 @@
 import unittest2 as unittest
 
-from mock import Mock, patch
+from mock import Mock, call, patch
 
 from pyvertica.connection import get_connection, _get_random_node_address
 
@@ -9,16 +9,29 @@ class ModuleTestCase(unittest.TestCase):
     """
     Tests for :py:mod:`~pyvertica.connection`.
     """
+    @patch('pyvertica.connection._get_random_node_address')
     @patch('pyvertica.connection.pyodbc')
-    def test_get_connection_not_cached(self, pyodbc):
+    def test_get_connection(self, pyodbc, get_random_node_address):
         """
-        Test :py:func:`.get_connection` without cache.
+        Test :py:func:`.get_connection`.
         """
-        connection = get_connection('VerticaSTG', foo='bar', bar='foo')
+        pyodbc.connect.side_effect = ['connection1', 'connection2']
 
-        pyodbc.connect.assert_called_once_with(
-            'DSN=VerticaSTG', foo='bar', bar='foo')
-        self.assertEqual(pyodbc.connect.return_value, connection)
+        connection = get_connection('TestDSN', foo='bar', bar='foo')
+
+        self.assertEqual([
+            call('DSN=TestDSN', foo='bar', bar='foo'),
+            call(
+                'DSN=TestDSN',
+                servername=get_random_node_address.return_value,
+                foo='bar',
+                bar='foo',
+            ),
+        ], pyodbc.connect.call_args_list)
+
+        get_random_node_address.assert_called_once_with('connection1')
+
+        self.assertEqual('connection2', connection)
 
     def test__get_random_node_address(self):
         """
