@@ -248,6 +248,9 @@ class VerticaBatch(object):
             logging.error('Terminating thread timed out!')
 
         self._in_batch = False
+        os.remove(self._fifo_path)
+        os.rmdir(os.path.dirname(self._fifo_path))
+
         logger.info('Batch ended')
         return ended_clean
 
