@@ -200,9 +200,12 @@ class VerticaBatchTestCase(unittest.TestCase):
         )
         batch._query_thread.start.assert_called_once_with()
 
+    @patch('pyvertica.batch.os.remove')
+    @patch('pyvertica.batch.os.rmdir')
     @patch('pyvertica.batch.get_connection')
     @patch('pyvertica.batch.VerticaBatch._start_batch')
-    def test__end_batch_clean(self, start_batch, get_connection):
+    def test__end_batch_clean(
+            self, start_batch, get_connection, remove, rmdir):
         """
         Test :py:meth:`.VerticaBatch._end_batch` ending clean.
 
@@ -214,6 +217,7 @@ class VerticaBatchTestCase(unittest.TestCase):
         query_thread.is_alive.return_value = False
 
         batch = self.get_batch()
+        batch._fifo_path = '/tmp/abcd1234/fifo'
         batch._fifo_obj = Mock()
         batch._query_thread_semaphore_obj = Mock()
         batch._query_thread = query_thread
@@ -226,15 +230,18 @@ class VerticaBatchTestCase(unittest.TestCase):
         query_thread.join.assert_called_once_with(2)
         query_thread.is_alive.assert_called_once_with()
 
+        os.remove('/tmp/abcd1234/fifo')
+        os.rmdir('/tmp/abcd1234')
+
         self.assertFalse(batch._in_batch)
         self.assertTrue(end_return)
 
-    @patch('pyvertica.batch.os')
+    @patch('pyvertica.batch.os.remove')
+    @patch('pyvertica.batch.os.rmdir')
     @patch('pyvertica.batch.VerticaBatch._start_batch')
-    @patch('pyvertica.batch.time')
     @patch('pyvertica.batch.get_connection')
     def test__end_batch_dirty(
-            self, get_connection, time, start_batch, os_mock):
+            self, get_connection, start_batch, rmdir, remove):
         """
         Test :py:meth:`.VerticaBatch._end_batch` ending 'dirty'.
         """
@@ -245,9 +252,13 @@ class VerticaBatchTestCase(unittest.TestCase):
         query_thread.is_alive.return_value = True
 
         batch = self.get_batch()
+        batch._fifo_path = '/tmp/abcd1234/fifo'
         batch._fifo_obj = Mock()
         batch._query_thread_semaphore_obj = Mock()
         batch._query_thread = query_thread
+
+        os.remove('/tmp/abcd1234/fifo')
+        os.rmdir('/tmp/abcd1234')
 
         self.assertFalse(batch._end_batch())
         self.assertFalse(batch._in_batch)

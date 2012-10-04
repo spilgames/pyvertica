@@ -4,6 +4,7 @@ Welcome to PyVertica documentation!
 *pyvertica* is a package which contains the shared logic for connecting
 and writing to a Vertica database.
 
+
 Installation
 ------------
 
@@ -12,6 +13,13 @@ Installation
 .. note:: When using the :py:class:`~pyvertica.importer.BaseImporter`, do
   not forget to create the batch history table. An SQL example can be found
   in the class documentation.
+
+
+Links
+-----
+
+* `documentation <http://packages.python.org/pyvertica/>`_
+* `source <http://github.com/spilgames/pyvertica/>`_
 
 
 Command-line usage
@@ -53,7 +61,6 @@ Usage::
       --null NULL           represents a null value (default: empty string)
       --record-terminator RECORD_TEMINATOR
                             specifies the end of a record (default: newline)
-
 
 
 
