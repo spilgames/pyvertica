@@ -445,12 +445,25 @@ class VerticaBatch(object):
 
         if analyze_constraints and analyze_constraints.rowcount > 0:
             error_file_obj.write(
-                'At least one constraint not met: {0}\n'.format(', '.join(
-                    analyze_constraints.fetchone())))
+                'At least one constraint not met: {0}\n'.format(
+                    ', '.join(analyze_constraints.fetchone())))
 
         self._rejected_file_obj.seek(0)
-        for line in self._rejected_file_obj:
-            error_file_obj.write('Rejected data at line: {0}'.format(line))
+        file_size = os.path.getsize(self._rejected_file_obj.name)
+        read_func = lambda: self._rejected_file_obj.read(1024 * 1024)
+        for counter, line in enumerate(iter((read_func), '')):
+            if counter == 0:
+                error_file_obj.write('Rejected data at line: ')
+
+            line = line.replace(
+                self.copy_options_dict['RECORD TERMINATOR'],
+                '\nRejected data at line: '
+            )
+
+            if self._rejected_file_obj.tell() == file_size:
+                line = line[:-23]
+
+            error_file_obj.write(line)
 
         errors = error_file_obj.tell() > 0
         error_file_obj.seek(0)

@@ -416,7 +416,7 @@ class VerticaBatchTestCase(unittest.TestCase):
         batch._cursor.execute.return_value.rowcount = 0
 
         with open(batch._rejected_file_obj.name, 'w') as f:
-            f.write('123\n456\n')
+            f.write('123\x01456\x01')
 
         errors_tuple = batch.get_errors()
 

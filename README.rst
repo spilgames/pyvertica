@@ -41,6 +41,13 @@ Links
 Changes
 -------
 
+v1.2.2
+~~~~~~
+
+* **FIX**: Line-endings in file-object returned by ``get_errors``. All is now
+  ``\n``.
+
+
 v1.2.1
 ~~~~~~
 
