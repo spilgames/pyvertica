@@ -12,5 +12,6 @@ unittest: clean-pyc
 	coverage erase
 	coverage run --include "pyvertica*" --omit "*test*" -m unittest2 discover
 	coverage report
+	coverage html
 
 test: pep8 unittest documentation

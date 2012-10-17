@@ -15,24 +15,20 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    '--target_port',
-    dest='target_port',
-    default='5433',
-    help='Optional, port of the target as accessible from the source.'
+    '--log',
+    dest='log_level',
+    choices=['debug', 'info', 'warning', 'error', 'critical'],
+    default='info',
+    help='loglevel of loghandler (default: info)',
 )
 
-parser.add_argument(
-    '--target_host',
-    dest='target_host',
-    default=None,
-    help='Optional, host of the target as accessible by the source.'
-)
 
 parser.add_argument(
     '--target_pwd',
     dest='target_pwd',
-    help='Password of the target vertica.',
-    required=True
+    default='',
+    help='Password of the target vertica. Used only to '
+        'export data via the vertica CONNECT statement',
 )
 
 parser.add_argument(
@@ -59,21 +55,28 @@ parser.add_argument(
     default=False
 )
 
+parser.add_argument(
+    '--limit',
+    dest='limit',
+    default='ALL',
+    help='Limit the number of rows to copy over, per table.'
+)
+
+parser.add_argument(
+    '--truncate',
+    dest='truncate',
+    action='store_true',
+    default=False,
+    help='Truncate destination tables before copying data over.'
+)
+
 
 parser.add_argument(
     '--source_pwd',
     dest='source_pwd',
     default='',
-    help='Optional, Password of the source vertica. Needed only if vsql needs '
+    help='Password of the source vertica. Needed only if vsql needs '
         'to be used to get the ddls.',
-)
-
-parser.add_argument(
-    '--log',
-    dest='log_level',
-    choices=['debug', 'info', 'warning', 'error', 'critical'],
-    default='info',
-    help='loglevel of loghandler (default: info)',
 )
 
 parser.add_argument(
@@ -86,6 +89,14 @@ parser.add_argument(
     'target',
     type=str,
     help='ODBC data source name',
+)
+
+parser.add_argument(
+    'objects',
+    type=str,
+    nargs='*',
+    default=[],
+    help='List of objects (schemas or table) to migrate',
 )
 
 
@@ -123,12 +134,13 @@ if __name__ == '__main__':
     args = parser.parse_args()
     setup_log_handler(args)
     logger = logging.getLogger(__name__)
+
     migrator = VerticaMigrator(args.source, args.target, args.commit, args)
     if args.skip_ddls:
         logger.info('Do not migrate DDLs.')
     else:
-        migrator.migrate_ddls()
+        migrator.migrate_ddls(args.objects)
     if args.skip_data:
         logger.info('Do not migrate data.')
     else:
-        migrator.migrate_data()
+        migrator.migrate_data(args.objects)

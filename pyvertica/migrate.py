@@ -6,6 +6,7 @@ from subprocess import CalledProcessError
 import tempfile
 
 from pyvertica.connection import get_connection, connection_details
+from pyvertica.batch import VerticaBatch
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +114,7 @@ class VerticaMigrator(object):
             else:
                 raise VerticaMigratorException("Target vertica is not empty.")
 
-    def _get_ddls(self):
+    def _get_ddls(self, objects=[]):
         """
         Query the source vertica to get the DDLs as a big string, using the
         EXPORT_OBJECTS function.
@@ -125,9 +126,13 @@ class VerticaMigrator(object):
             A ``str`` containg the DDLs.
         """
         logger.info('Getting DDLs...')
-        from_db = self._source.execute("SELECT EXPORT_OBJECTS('', '', False)").fetchone()
+        export_sql = "SELECT EXPORT_OBJECTS('', '{0}', False)".format(','.join(objects))
+        print export_sql
 
+        # from_db = self._source.execute(export_sql).fetchone()
+        from_db = None
         if from_db is None:
+            logger.info('From vsql')
             details = connection_details(self._source_con)
 
             if 'source_pwd' in self._args and self._args.source_pwd is not None:
@@ -144,7 +149,7 @@ class VerticaMigrator(object):
                     '-d', details['db'],
                     '-t',  # rows only
                     '-w',  details['pwd'],
-                    '-c',  "SELECT EXPORT_OBJECTS('', '', False)"
+                    '-c',  export_sql
                     ], stderr=err)
             except CalledProcessError as e:
                 err.seek(0)
@@ -153,14 +158,14 @@ class VerticaMigrator(object):
                     Output was: {1}
                     """.format(e, err.read()))
         else:
-            ddls = from_db.fetchone()[0]
+            logger.info('From export_objects')
+            ddls = from_db[0]
 
-        logger.info('Got DDLs' + ' (From vsql)' if from_db is None else '')
         return ddls
 
-    def _uses_sequence(self, ddl):
+    def _is_sequence(self, ddl):
         """
-        Is the ddl in parameter a CREATE TABLE with an SEQUENCE?
+        Is the ddl in parameter a CREATE SEQUENCE?
 
         :param ddl:
             A ddl as a ``str``.
@@ -194,8 +199,7 @@ class VerticaMigrator(object):
             """.format(schema=schema, seq=seq)
         ).fetchone()[0]
 
-        if current == 0:
-            current = 1
+        current += 1
         ddl += ' START WITH {0}'.format(current)
         return ddl
 
@@ -264,13 +268,67 @@ class VerticaMigrator(object):
     def _is_proj(self, ddl):
             """
             """
+            #print 'in proj : ' + ddl
             m_projs = self._find_proj.search(ddl)
+            #print m_projs
             if m_projs:
                 return True
             else:
                 return False
 
-    def migrate_ddls(self):
+    def _get_table_list(self, con, objects):
+        """
+        Return a list of table constained in the object list in parameter.
+        If object is empty it will mean all tables, if it is a schema it will
+        return only the table of the schema, if it is a table it will only
+        return the table itself.
+
+         :param con:
+            A pyodbc connection object.
+
+        :return:
+            A ``list`` of tables (``str``).
+        """
+        # basic sql
+        tables_sql = "SELECT table_schema as s, table_name as t FROM tables WHERE is_system_table=false AND is_temp_table=false"
+        # extra where clause to find only specific tables
+        where = []
+        if len(objects) == 0:
+            # Means all. We are happy with the default sql
+            pass
+        else:
+            for o in objects:
+                (schema, dot, table) = o.partition('.')
+                if table == '':
+                    # we have a schema only
+                    where.append("table_schema='{s}'".format(s=schema))
+                else:
+                    # we have a table
+                    where.append("table_schema='{s}' AND table_name='{t}'".format(t=table, s=schema))
+
+        if len(where) > 0:
+            tables_sql += ' AND ((' + ') OR ('.join(where) + '))'
+
+        return con.execute(tables_sql).fetchall()
+
+    def _connection_type(self):
+        details = connection_details(self._target)
+
+        details['pwd'] = self._args.target_pwd
+
+        connect = "CONNECT TO VERTICA {db} USER {user} PASSWORD '{pwd}' ON '{host}',5433".format(
+                db=details['db'],
+                user=details['user'],
+                host=details['host'],
+                pwd=details['pwd'])
+        logger.warning(connect)
+        try:
+            self._source.execute(connect)
+            return 'direct'
+        except:
+            return 'odbc'
+
+    def migrate_ddls(self, objects=[]):
         """
         Migrates DDLs from the source to the target.
         Algo:
@@ -287,24 +345,31 @@ class VerticaMigrator(object):
             - alter table to use the sequence
           - execute each statement (only if commit)
         """
-        ddls = self._get_ddls()
+        ddls = self._get_ddls(objects)
+
+        if ddls is None:
+            logger.info('No DDLs to migrate found...')
+            return
 
         logger.info('Migrating DDLs...')
+        count = 0
         for count, ddl in enumerate(ddls.split(';')):
             ddl = ddl.strip()
-
+            #print 'DDL = "' + ddl +'"'
             # pyodbc or vertica statement hangs when executing ''
-            if ddl == '' or ddl is None:
+            if ddl == '':
+                count -= 1
                 continue
-
+            #print 'ddl not empty'
             # do not bother with copying projections over
             if self._is_proj(ddl):
+                count -= 1
                 continue
-
+            #print 'ddl not proj'
             # do we need to find the start of a sequence?
-            if self._uses_sequence(ddl):
+            if self._is_sequence(ddl):
                 ddl = self._update_sequence_start(ddl)
-
+            #print 'ddl not seq'
             # Do we need to replace an IDENTITY by a sequence?
             new_seq = None
             if self._uses_identity(ddl):
@@ -334,44 +399,53 @@ class VerticaMigrator(object):
                 logger.debug(alter)
                 if self._commit:
                     self._target.execute(alter)
-        logger.info('{0} DDLs migrated'.format(count))
+        wouldhavebeen = 'would have been (with --comit)'
+        if self._commit:
+            wouldhavebeen = ''
+        logger.info('{0} DDLs {1} migrated'.format(count, wouldhavebeen))
 
-    def migrate_data(self):
+    def migrate_data(self, objects):
         """
         """
         logger.warning('Starting migrating data.')
-        details = connection_details(self._target)
 
-        if self._args.target_host is not None:
-            details['host'] = self._args.target_host
-
-        details['pwd'] = self._args.target_pwd
-        details['port'] = self._args.target_port
-
-        connect = "CONNECT TO VERTICA {db} USER {user} PASSWORD '{pwd}' ON '{host}',{port}".format(
-                db=details['db'],
-                user=details['user'],
-                host=details['host'],
-                pwd=details['pwd'],
-                port=details['port'])
-        logger.warning(connect)
-        self._source.execute(connect)
-
+        con_type = self._connection_type()
+        print con_type
         # as target and source should have the same shemas,
         # look at target to not screw up the source cursor
-        self._target.execute("SELECT table_schema as s, table_name as t FROM tables where is_system_table=false and is_temp_table=false")
 
-        while True:
-            row = self._target.fetchone()
-            if row is None:
-                break
-            sql = 'EXPORT TO VERTICA stgdwh.{s}.{t} FROM {s}.{t}'.format(s=row.s, t=row.t)
-            logger.warning(sql + '...')
-            nbrows = 0
-            if self._commit:
+        tables = self._get_table_list(self._target, objects)
+        print tables
+        for table in tables:
+
+            if con_type == 'direct':
+                sql = 'EXPORT TO VERTICA stgdwh.{s}.{t} SELECT * FROM FROM {s}.{t} LIMIT l'.format(s=table[0], t=table[1], l=self._args.limit)
+                logger.warning(sql + '...')
+                nbrows = 0
+                if self._commit:
+                    self._source.execute(sql)
+                    nbrows = self._source.rowcount
+                logger.warning('%s rows exported.' % nbrows)
+            elif con_type == 'odbc':
+                batch = VerticaBatch(
+                    dsn=self._target_dsn,
+                    table_name=table[0] + '.' + table[1],
+                    truncate_table=self._args.truncate,
+                )
+                sql = 'SELECT * FROM {s}.{t} LIMIT {l}'.format(s=table[0], t=table[1], l=self._args.limit)
+                logger.warning(sql)
                 self._source.execute(sql)
-                nbrows = self._source.rowcount
-            logger.warning('%s rows exported.' % nbrows)
-
-        logger.info('All data exported, disconnect')
-        self._source.execute('DISCONNECT stgdwh')
+                while True:
+                    row = self._source.fetchone()
+                    if row is None:
+                        break
+                    batch.insert_list(row)
+                batch.commit()
+            else:
+                raise VerticaMigratorException("Connection type from source to target not expected ('{0}').".format(con_type))
+        wouldhavebeen = 'would have been (with --comit)'
+        if self._commit:
+            wouldhavebeen = ''
+        logger.info('All data {0} exported.'.format(wouldhavebeen))
+        if con_type == 'direct':
+            self._source.execute('DISCONNECT stgdwh')

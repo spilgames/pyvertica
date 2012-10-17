@@ -45,15 +45,18 @@ def connection_details(con):
             A :py:func:`!pyodbc.connect` object # THIS IS WRONG
 
         :return:
-            A ``dict`` of information, containing current user and host.
+            A ``dict`` of information, containing current user, host and database.
     """
-    host = con.execute('''
-        SELECT n.node_address
+    details = con.execute('''
+        SELECT
+            n.node_address as host
+          , CURRENT_USER() as user
+          , CURRENT_DATABASE() as db
         FROM v_monitor.current_session cs
         JOIN v_catalog.nodes n ON n.node_name=cs.node_name
-        ''').fetchone()[0]
+        ''').fetchone()
     return {
-        'host': host,
-        'user': con.execute('SELECT CURRENT_USER()').fetchone()[0],
-        'db': con.execute('SELECT CURRENT_DATABASE()').fetchone()[0],
+        'host': details.host,
+        'user': details.user,
+        'db': details.db
     }
