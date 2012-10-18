@@ -3,7 +3,6 @@ import logging
 import os
 import tempfile
 import threading
-import time
 from functools import wraps
 
 from pyvertica.connection import get_connection
@@ -249,6 +248,9 @@ class VerticaBatch(object):
             logging.error('Terminating thread timed out!')
 
         self._in_batch = False
+        os.remove(self._fifo_path)
+        os.rmdir(os.path.dirname(self._fifo_path))
+
         logger.info('Batch ended')
         return ended_clean
 
@@ -443,12 +445,27 @@ class VerticaBatch(object):
 
         if analyze_constraints and analyze_constraints.rowcount > 0:
             error_file_obj.write(
-                'At least one constraint not met: {0}\n'.format(', '.join(
-                    analyze_constraints.fetchone())))
+                'At least one constraint not met: {0}\n'.format(
+                    ', '.join(analyze_constraints.fetchone())))
 
         self._rejected_file_obj.seek(0)
-        for line in self._rejected_file_obj:
-            error_file_obj.write('Rejected data at line: {0}'.format(line))
+        file_size = os.path.getsize(self._rejected_file_obj.name)
+        read_func = lambda: self._rejected_file_obj.read(1024 * 1024)
+        error_prefix = 'Rejected data at line: '
+
+        for counter, line in enumerate(iter((read_func), '')):
+            if counter == 0:
+                error_file_obj.write(error_prefix)
+
+            line = line.replace(
+                self.copy_options_dict['RECORD TERMINATOR'],
+                '\n{0}'.format(error_prefix)
+            )
+
+            if self._rejected_file_obj.tell() == file_size:
+                line = line[:-len(error_prefix)]
+
+            error_file_obj.write(line)
 
         errors = error_file_obj.tell() > 0
         error_file_obj.seek(0)

@@ -111,6 +111,18 @@ class BaseImporter(object):
     Name of the database table (excluding the schema) (``str``).
     """
 
+    batch_history_table = 'meta.batch_history'
+    """
+    Name of the database table containing the batch history (including the
+    schema name) (``str``). The structure of this table is::
+
+            batch_source_name VARCHAR(255)
+            batch_source_type_name VARCHAR(255)
+            batch_source_path VARCHAR(255)
+            batch_import_timestamp TIMESTAMP
+
+    """
+
     batch_source_name = ''
     """
     The name of the source which the data is retrieved from. E.g.: for AdWords,
@@ -274,9 +286,11 @@ class BaseImporter(object):
 
         """
         db_cursor.execute(
-            'INSERT INTO meta.batch_history (batch_source_name, '
+            'INSERT INTO {batch_history_table} (batch_source_name, '
             'batch_source_type_name, batch_source_path, '
-            'batch_import_timestamp) VALUES (?, ?, ?, ?)',
+            'batch_import_timestamp) VALUES (?, ?, ?, ?)'.format(
+                batch_history_table=self.batch_history_table
+            ),
             self.batch_source_name,
             self.batch_source_type_name,
             self.get_extra_batch_source_path_data(None),
@@ -386,9 +400,11 @@ class BaseImporter(object):
         connection = get_connection(dsn)
         cursor = connection.cursor()
         cursor.execute(
-            'SELECT batch_source_path FROM meta.batch_history '
+            'SELECT batch_source_path FROM {batch_history_table} '
             'WHERE batch_source_name = ? AND batch_source_type_name = ? AND '
-            'batch_source_path = ? LIMIT 1',
+            'batch_source_path = ? LIMIT 1'.format(
+                batch_history_table=cls.batch_history_table
+            ),
             cls.batch_source_name,
             cls.batch_source_type_name,
             batch_source_path
@@ -414,9 +430,11 @@ class BaseImporter(object):
         connection = get_connection(dsn)
         cursor = connection.cursor()
         cursor.execute(
-            'SELECT batch_source_path FROM meta.batch_history '
+            'SELECT batch_source_path FROM {batch_history_table} '
             'WHERE batch_source_name = ? AND batch_source_type_name = ? '
-            'ORDER BY batch_import_timestamp DESC LIMIT 1',
+            'ORDER BY batch_import_timestamp DESC LIMIT 1'.format(
+                batch_history_table=cls.batch_history_table
+            ),
             cls.batch_source_name,
             cls.batch_source_type_name
         )

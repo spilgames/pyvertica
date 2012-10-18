@@ -2,7 +2,7 @@ PyVertica
 =========
 
 This package contains tools for performing batch imports to the Vertica
-database. See ``docs`` folder for full documentation.
+database.
 
 
 Provided modules
@@ -31,8 +31,30 @@ Installation
 *pyvertica* can be installing by executing ``pip install pyvertica``.
 
 
+Links
+-----
+
+* `documentation <http://packages.python.org/pyvertica/>`_
+* `source <http://github.com/spilgames/pyvertica/>`_
+
+
 Changes
 -------
+
+v1.2.2
+~~~~~~
+
+* **FIX**: Line-endings in file-object returned by ``get_errors``. All is now
+  ``\n``.
+
+
+v1.2.1
+~~~~~~
+
+* **CHANGE**: The Batch-history table is now configurable in ``BaseImporter``.
+* **CHANGE**: ``get_connection`` selects a random node from the cluster
+  and returns a connection to that node.
+* **FIX**: Cleanup fifo + temporary directory.
 
 v1.2.0
 ~~~~~~
