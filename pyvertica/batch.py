@@ -68,7 +68,11 @@ class QueryThread(threading.Thread):
         """
         logger.info('Thread started with SQL statement: {0}'.format(
             self.sql_query_str))
-        self.cursor.execute(self.sql_query_str)
+        try:
+            self.cursor.execute(self.sql_query_str)
+        except Exception:
+            logger.exception('Something unexpected happened')
+
         logger.info('Thread done')
         self.semaphore_obj.release()
 
