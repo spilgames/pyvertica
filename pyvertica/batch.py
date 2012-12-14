@@ -3,6 +3,7 @@ import logging
 import os
 import tempfile
 import threading
+from Queue import Queue
 from functools import wraps
 
 from pyvertica.connection import get_connection
@@ -53,11 +54,14 @@ class QueryThread(threading.Thread):
     if only those are left.
     """
 
-    def __init__(self, cursor, sql_query_str, semaphore_obj):
+    def __init__(
+            self, cursor, sql_query_str, semaphore_obj, fifo_path, exc_queue):
         super(QueryThread, self).__init__()
         self.cursor = cursor
         self.sql_query_str = sql_query_str
         self.semaphore_obj = semaphore_obj
+        self.exc_queue = exc_queue
+        self.fifo_path = fifo_path
 
     def run(self):
         """
@@ -68,7 +72,19 @@ class QueryThread(threading.Thread):
         """
         logger.info('Thread started with SQL statement: {0}'.format(
             self.sql_query_str))
-        self.cursor.execute(self.sql_query_str)
+        try:
+            self.cursor.execute(self.sql_query_str)
+        except Exception as e:
+            logger.exception('Something unexpected happened')
+
+            # the exception will be re-raised in the main thread
+            self.exc_queue.put(e)
+
+            # we need to consume the fifo, to make sure it isn't blocking the
+            # write (and thus hanging forever).
+            for line in codecs.open(self.fifo_path, 'r', 'utf-8'):
+                pass
+
         logger.info('Thread done')
         self.semaphore_obj.release()
 
@@ -202,6 +218,7 @@ class VerticaBatch(object):
         """
         self._in_batch = True
         self._batch_count = 0
+        self._query_exc_queue = Queue()
 
         # create FIFO
         self._fifo_path = os.path.join(tempfile.mkdtemp(), 'fifo')
@@ -216,6 +233,8 @@ class VerticaBatch(object):
             self._cursor,
             self._get_sql_lcopy_str(),
             self._query_thread_semaphore_obj,
+            self._fifo_path,
+            self._query_exc_queue,
         )
         self._query_thread.start()
 
@@ -252,6 +271,10 @@ class VerticaBatch(object):
         os.rmdir(os.path.dirname(self._fifo_path))
 
         logger.info('Batch ended')
+
+        if not self._query_exc_queue.empty():
+            raise self._query_exc_queue.get()
+
         return ended_clean
 
     def get_batch_count(self):
