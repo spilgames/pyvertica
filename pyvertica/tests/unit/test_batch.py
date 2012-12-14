@@ -418,6 +418,19 @@ class VerticaBatchTestCase(unittest.TestCase):
         self.assertEqual(0, batch._end_batch.call_count)
 
     @patch('pyvertica.batch.get_connection')
+    def test_get_errors_disabled_analyze_constraints(self, get_connection):
+        """
+        Test :py:meth:`.VerticaBatch.get_errors` when analyze_contraints=False.
+        """
+        batch = self.get_batch(analyze_constraints=False)
+        batch.get_batch_count = Mock(return_value=10)
+        batch._end_batch = Mock()
+        batch._cursor = Mock()
+        batch._rejected_file_obj = tempfile.NamedTemporaryFile()
+
+        self.assertEqual(0, batch._cursor.execute.call_count)
+
+    @patch('pyvertica.batch.get_connection')
     def test_get_errors_constraint_error(self, get_connection):
         """
         Test :py:meth:`.VerticaBatch.get_errors` with constraint errors.
