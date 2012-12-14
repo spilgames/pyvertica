@@ -3,6 +3,7 @@
 import os
 import stat
 import tempfile
+import threading
 import unittest2 as unittest
 from Queue import Queue
 
@@ -91,14 +92,15 @@ class QueryThreadTestCase(unittest.TestCase):
         file_obj = tempfile.NamedTemporaryFile(bufsize=0, delete=False)
         file_obj.write('foo\nbar\n')
         file_obj.close()
+        semaphore_obj = threading.Semaphore(0)
 
         cursor = Mock()
         cursor.execute.side_effect = Exception('Boom!')
-        semaphore_obj = Mock()
         exc_queue = Queue()
 
         QueryThread(
             cursor, Mock(), semaphore_obj, file_obj.name, exc_queue).start()
+        semaphore_obj.acquire()
 
         os.remove(file_obj.name)
         self.assertTrue(isinstance(exc_queue.get(), Exception))
