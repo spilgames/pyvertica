@@ -4,6 +4,7 @@ import os
 import stat
 import tempfile
 import unittest2 as unittest
+from Queue import Queue
 
 from mock import Mock, patch
 
@@ -56,12 +57,17 @@ class QueryThreadTestCase(unittest.TestCase):
         cursor = Mock()
         sql_query_str = Mock()
         semaphore_obj = Mock()
+        fifo_path = Mock()
+        exc_queue = Mock()
 
-        query_thread = QueryThread(cursor, sql_query_str, semaphore_obj)
+        query_thread = QueryThread(
+            cursor, sql_query_str, semaphore_obj, fifo_path, exc_queue)
 
         self.assertEqual(cursor, query_thread.cursor)
         self.assertEqual(sql_query_str, query_thread.sql_query_str)
         self.assertEqual(semaphore_obj, query_thread.semaphore_obj)
+        self.assertEqual(fifo_path, query_thread.fifo_path)
+        self.assertEqual(exc_queue, query_thread.exc_queue)
 
     def test_run(self):
         """
@@ -71,11 +77,31 @@ class QueryThreadTestCase(unittest.TestCase):
         sql_query_str = Mock()
         semaphore_obj = Mock()
 
-        query_thread = QueryThread(cursor, sql_query_str, semaphore_obj)
+        query_thread = QueryThread(
+            cursor, sql_query_str, semaphore_obj, Mock(), Mock())
         query_thread.run()
 
         cursor.execute.assert_called_once_with(sql_query_str)
         semaphore_obj.release.assert_called_once_with()
+
+    def test_run_raising_exception(self):
+        """
+        Test :py:meth:`.QueryThread.run` raising an exception.
+        """
+        file_obj = tempfile.NamedTemporaryFile(bufsize=0, delete=False)
+        file_obj.write('foo\nbar\n')
+        file_obj.close()
+
+        cursor = Mock()
+        cursor.execute.side_effect = Exception('Boom!')
+        semaphore_obj = Mock()
+        exc_queue = Queue()
+
+        QueryThread(
+            cursor, Mock(), semaphore_obj, file_obj.name, exc_queue).start()
+
+        os.remove(file_obj.name)
+        self.assertTrue(isinstance(exc_queue.get(), Exception))
 
 
 class VerticaBatchTestCase(unittest.TestCase):
@@ -193,6 +219,8 @@ class VerticaBatchTestCase(unittest.TestCase):
             batch._cursor,
             batch._get_sql_lcopy_str.return_value,
             batch._query_thread_semaphore_obj,
+            batch._fifo_path,
+            batch._query_exc_queue,
         )
         self.assertEqual(
             QueryThreadMock.return_value,
@@ -221,6 +249,8 @@ class VerticaBatchTestCase(unittest.TestCase):
         batch._fifo_obj = Mock()
         batch._query_thread_semaphore_obj = Mock()
         batch._query_thread = query_thread
+        batch._query_exc_queue = Mock()
+        batch._query_exc_queue.empty.return_value = True
 
         end_return = batch._end_batch()
 
@@ -256,6 +286,8 @@ class VerticaBatchTestCase(unittest.TestCase):
         batch._fifo_obj = Mock()
         batch._query_thread_semaphore_obj = Mock()
         batch._query_thread = query_thread
+        batch._query_exc_queue = Mock()
+        batch._query_exc_queue.empty.return_value = True
 
         os.remove('/tmp/abcd1234/fifo')
         os.rmdir('/tmp/abcd1234')
