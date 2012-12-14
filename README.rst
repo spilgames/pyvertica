@@ -41,6 +41,13 @@ Links
 Changes
 -------
 
+v1.2.4
+~~~~~~
+
+* **CHANGE**: Make the execution of ``ANALYZE_CONSTRAINTS`` optional (executed
+  when getting the errors).
+
+
 v1.2.3
 ~~~~~~
 
