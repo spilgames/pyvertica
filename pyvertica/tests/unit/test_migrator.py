@@ -1,19 +1,17 @@
-
-
 import argparse
 import copy
 import unittest2 as unittest
 
 from subprocess import CalledProcessError
 from mock import Mock, call, patch
-from pyvertica.migrate import VerticaMigrator, VerticaMigratorException
+from pyvertica.migrate import VerticaMigrator, VerticaMigratorError
 
 
-class VerticaMigratorExceptionTest(unittest.TestCase):
-    def test_exception(self):
-        e = VerticaMigratorException('apenzeller')
-        self.assertEqual(e.value, 'apenzeller')
-        self.assertEqual(e.__str__(), "'apenzeller'")
+# class VerticaMigratorErrorTest(unittest.TestCase):
+#     def test_exception(self):
+#         e = VerticaMigratorError('apenzeller')
+#         self.assertEqual(e.value, 'apenzeller')
+#         self.assertEqual(e.__str__(), "'apenzeller'")
 
 
 class VerticaMigratorConnection(unittest.TestCase):
@@ -28,13 +26,13 @@ class VerticaMigratorTestCase(unittest.TestCase):
     Test for :py:class:`.VerticaMigrator`.
     """
 
-    def get_migrator(self, **kwargs):
-        arguments = copy.deepcopy(argparse.Namespace())
+    @patch('pyvertica.migrate.VerticaMigrator._set_connections')
+    @patch('pyvertica.migrate.VerticaMigrator._sanity_checks')
+    def get_migrator(self, sanity_checks, set_connections, **kwargs):
+        migrator = VerticaMigrator('SourceDSN', 'TargetDSN', False, **kwargs)
+        return migrator
 
-        for k, v in kwargs.items():
-            setattr(arguments, k, v)
-        return VerticaMigrator('SourceDSN', 'TargetDSN', False, arguments)
-
+    # USELESS test?
     # @patch('pyvertica.migrate.VerticaMigrator._sanity_checks')
     # @patch('pyvertica.migrate.VerticaMigrator._set_connections')
     # def test___init(self, cnx, sanity):
@@ -51,103 +49,98 @@ class VerticaMigratorTestCase(unittest.TestCase):
 
     # ### Test connections to source and target
 
-    # @patch('pyvertica.migrate.VerticaMigrator._sanity_checks')
-    # @patch('pyvertica.migrate.get_connection')
-    # def test__set_connections(self, cnx, sanity):
-    #     """
-    #     Test :py:meth:`.VerticaMigrator._set_connections`.
-    #     """
-    #     self.get_migrator()
+    @patch('pyvertica.migrate.VerticaMigrator._sanity_checks')
+    @patch('pyvertica.migrate.get_connection')
+    def test__set_connections(self, cnx, sanity):
+        """
+        Test :py:meth:`.VerticaMigrator._set_connections`.
+        """
+        VerticaMigrator('SourceDSN', 'TargetDSN', False)
+        self.assertEqual([
+            call('SourceDSN'),
+            call('TargetDSN'),
+        ], cnx.call_args_list)
 
-    #     self.assertEqual([
-    #         call('SourceDSN'),
-    #         call('TargetDSN'),
-    #     ], cnx.call_args_list)
+    ### different sanity options.
+    @patch('pyvertica.migrate.VerticaMigrator._source_ip', '1.2.3.4', create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._target_ip', '5.6.7.8', create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._target', create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._set_connections')
+    def test__sanity_ok(self, cnx, target):
+        """
+        Test :py:meth:`.VerticaMigrator._sanity_checks`.
+        No exception should be raised if IP are different.
+        """
+        target.execute.return_value.fetchone.return_value = [0]
+        VerticaMigrator('SourceDSN', 'TargetDSN', False)
 
-    # ### different sanity options.
-    # @patch('pyvertica.migrate.VerticaMigrator._source_ip', '1.2.3.4', create=True)
-    # @patch('pyvertica.migrate.VerticaMigrator._target_ip', '5.6.7.8', create=True)
-    # @patch('pyvertica.migrate.VerticaMigrator._target', create=True)
-    # @patch('pyvertica.migrate.VerticaMigrator._set_connections')
-    # def test__sanity_ok(self, cnx, target):
-    #     """
-    #     Test :py:meth:`.VerticaMigrator._sanity_checks`.
-    #     No exception should be raised if IP are different.
-    #     """
-    #     target.execute.return_value.fetchone.return_value = [0]
-    #     self.get_migrator()
+    @patch('pyvertica.migrate.VerticaMigrator._source_ip', '1.2.3.4', create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._target_ip', '1.2.3.4', create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._source', create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._target', create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._set_connections')
+    def test__sanity_same_ip_diff_db(self, cnx, target, source):
+        """
+        Test :py:meth:`.VerticaMigrator._sanity_checks`.
+        No exception should be raised if IPs are identical but DBs are different.
+        """
+        target.execute.return_value.fetchone.side_effect = [['targetDB'], [0]]
+        source.execute.return_value.fetchone.return_value = ['sourceDB']
+        VerticaMigrator('SourceDSN', 'TargetDSN', False)
 
-    # @patch('pyvertica.migrate.VerticaMigrator._source_ip', '1.2.3.4', create=True)
-    # @patch('pyvertica.migrate.VerticaMigrator._target_ip', '1.2.3.4', create=True)
-    # @patch('pyvertica.migrate.VerticaMigrator._source', create=True)
-    # @patch('pyvertica.migrate.VerticaMigrator._target', create=True)
-    # @patch('pyvertica.migrate.VerticaMigrator._set_connections')
-    # def test__sanity_same_ip_diff_db(self, cnx, target, source):
-    #     """
-    #     Test :py:meth:`.VerticaMigrator._sanity_checks`.
-    #     No exception should be raised if IPs are identical but DBs are different.
-    #     """
-    #     target.execute.return_value.fetchone.side_effect = [['targetDB'], [0]]
-    #     source.execute.return_value.fetchone.return_value = ['sourceDB']
-    #     self.get_migrator()
+    @patch('pyvertica.migrate.VerticaMigrator._source_ip', '1.2.3.4', create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._target_ip', '1.2.3.4', create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._source', create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._target', create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._set_connections')
+    def test__sanity_same_ip_same_db(self, cnx, target, source):
+        """
+        Test :py:meth:`.VerticaMigrator._sanity_checks`.
+        Exception if IPs are identical and DBs are identical.
+        """
+        target.execute.return_value.fetchone.side_effect = [['targetDB'], [0]]
+        source.execute.return_value.fetchone.return_value = ['targetDB']
+        self.assertRaises(VerticaMigratorError, lambda: VerticaMigrator('SourceDSN', 'TargetDSN', False))
 
-    # @patch('pyvertica.migrate.VerticaMigrator._source_ip', '1.2.3.4', create=True)
-    # @patch('pyvertica.migrate.VerticaMigrator._target_ip', '1.2.3.4', create=True)
-    # @patch('pyvertica.migrate.VerticaMigrator._source', create=True)
-    # @patch('pyvertica.migrate.VerticaMigrator._target', create=True)
-    # @patch('pyvertica.migrate.VerticaMigrator._set_connections')
-    # def test__sanity_same_ip_same_db(self, cnx, target, source):
-    #     """
-    #     Test :py:meth:`.VerticaMigrator._sanity_checks`.
-    #     Exception if IPs are identical and DBs are identical.
-    #     """
+    @patch('pyvertica.migrate.VerticaMigrator._source_ip', '1.2.3.4', create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._target_ip', '5.6.7.8', create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._target', create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._set_connections')
+    def test__sanity_not_empty(self, cnx, target):
+        """
+        Test :py:meth:`.VerticaMigrator._sanity_checks`.
+        Exception if target DB is not empty.
+        """
+        target.execute.return_value.fetchone.return_value = [42]
+        self.assertRaises(VerticaMigratorError, lambda: VerticaMigrator('SourceDSN', 'TargetDSN', False))
 
-    #     target.execute.return_value.fetchone.side_effect = [['targetDB'], [0]]
-    #     source.execute.return_value.fetchone.return_value = ['targetDB']
-    #     self.assertRaises(VerticaMigratorException, self.get_migrator)
-
-    # @patch('pyvertica.migrate.VerticaMigrator._source_ip', '1.2.3.4', create=True)
-    # @patch('pyvertica.migrate.VerticaMigrator._target_ip', '5.6.7.8', create=True)
-    # @patch('pyvertica.migrate.VerticaMigrator._target', create=True)
-    # @patch('pyvertica.migrate.VerticaMigrator._set_connections')
-    # def test__sanity_not_empty(self, cnx, target):
-    #     """
-    #     Test :py:meth:`.VerticaMigrator._sanity_checks`.
-    #     Exception if target DB is not empty.
-    #     """
-
-    #     target.execute.return_value.fetchone.return_value = [42]
-    #     self.assertRaises(VerticaMigratorException, self.get_migrator)
-
-    # @patch('pyvertica.migrate.VerticaMigrator._source_ip', '1.2.3.4', create=True)
-    # @patch('pyvertica.migrate.VerticaMigrator._target_ip', '5.6.7.8', create=True)
-    # @patch('pyvertica.migrate.VerticaMigrator._target', create=True)
-    # @patch('pyvertica.migrate.VerticaMigrator._set_connections')
-    # def test__sanity_not_empty_but_thats_ok(self, cnx, target):
-    #     """
-    #     Test :py:meth:`.VerticaMigrator._sanity_checks`.
-    #     No exception if target DB is not empty and we know it: even_not_empty=True.
-    #     """
-    #     target.execute.return_value.fetchone.return_value = [42]
-    #     self.get_migrator(even_not_empty=True)
+    @patch('pyvertica.migrate.VerticaMigrator._source_ip', '1.2.3.4', create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._target_ip', '5.6.7.8', create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._target', create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._set_connections')
+    def test__sanity_not_empty_but_thats_ok(self, cnx, target):
+        """
+        Test :py:meth:`.VerticaMigrator._sanity_checks`.
+        No exception if target DB is not empty and we know it: even_not_empty=True.
+        """
+        target.execute.return_value.fetchone.return_value = [42]
+        VerticaMigrator('SourceDSN', 'TargetDSN', False, even_not_empty=True)
 
     # ### get DDLs
 
-    # @patch('subprocess.check_output')
-    # @patch('pyvertica.migrate.VerticaMigrator._source_con', create=True)
-    # @patch('pyvertica.migrate.VerticaMigrator._source', create=True)
-    # @patch('pyvertica.migrate.VerticaMigrator._set_connections')
-    # @patch('pyvertica.migrate.VerticaMigrator._sanity_checks')
-    # def test__get_ddls_empty(self, checks, cnx, source, source_con, subp):
-    #     """
-    #     Test :py:meth:`.VerticaMigrator._get_ddls`.
-    #     None from DB, get from subprocess.
-    #     """
-    #     sql = 'CREATE TABLE cheese (id INT)'
-    #     subp.return_value = sql
-    #     source.execute.return_value.fetchone.return_value = None
-    #     ret = self.get_migrator()._get_ddls()
-    #     self.assertEqual(ret, sql)
+    @patch('subprocess.check_output')
+    @patch('pyvertica.migrate.VerticaMigrator._source_con', create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._source', create=True)
+    def test__get_ddls_empty(self, source, source_con, subp):
+        """
+        Test :py:meth:`.VerticaMigrator._get_ddls`.
+        None from DB, get from subprocess.
+        """
+        sql = 'CREATE TABLE cheese (id INT)'
+        subp.return_value = sql
+        source.execute.return_value.fetchone.return_value = None
+        ret = self.get_migrator()._get_ddls()
+        self.assertEqual(ret, sql)
 
     # @patch('subprocess.check_output')
     # @patch('pyvertica.migrate.VerticaMigrator._source_con', create=True)
@@ -177,7 +170,7 @@ class VerticaMigratorTestCase(unittest.TestCase):
     #     """
     #     source.execute.return_value.fetchone.return_value = None
     #     subp.side_effect = CalledProcessError(42, 'Boom')
-    #     self.assertRaises(VerticaMigratorException, self.get_migrator()._get_ddls)
+    #     self.assertRaises(VerticaMigratorError, self.get_migrator()._get_ddls)
 
     # @patch('pyvertica.migrate.VerticaMigrator._source', create=True)
     # @patch('pyvertica.migrate.VerticaMigrator._set_connections')
@@ -413,51 +406,51 @@ class VerticaMigratorTestCase(unittest.TestCase):
     #     ctype_odbc = migrator._connection_type()
     #     self.assertEqual(ctype_odbc, 'odbc')
 
-    ### DDL migration
-    @patch('pyvertica.migrate.VerticaMigrator._replace_identity')
-    @patch('pyvertica.migrate.VerticaMigrator._uses_identity', autospec=True)
-    @patch('pyvertica.migrate.VerticaMigrator._update_sequence_start')
-    @patch('pyvertica.migrate.VerticaMigrator._is_sequence', autospec=True)
-    @patch('pyvertica.migrate.VerticaMigrator._find_proj', autospec=True)
-    @patch('pyvertica.migrate.VerticaMigrator._is_proj', autospec=True)
-    @patch('pyvertica.migrate.VerticaMigrator._get_ddls')
-    @patch('pyvertica.migrate.VerticaMigrator._target', create=True)
-    @patch('pyvertica.migrate.VerticaMigrator._set_connections')
-    @patch('pyvertica.migrate.VerticaMigrator._sanity_checks')
-    def test_migrate_ddls(self, checks, cnx, target, get_ddls,
-    is_proj, find_proj,
-     is_seq, upd_seq,
-      uses_ident,
-      rep_ident):
+    # ### DDL migration
+    # @patch('pyvertica.migrate.VerticaMigrator._replace_identity')
+    # @patch('pyvertica.migrate.VerticaMigrator._uses_identity', autospec=True)
+    # @patch('pyvertica.migrate.VerticaMigrator._update_sequence_start')
+    # @patch('pyvertica.migrate.VerticaMigrator._is_sequence', autospec=True)
+    # @patch('pyvertica.migrate.VerticaMigrator._find_proj', autospec=True)
+    # @patch('pyvertica.migrate.VerticaMigrator._is_proj', autospec=True)
+    # @patch('pyvertica.migrate.VerticaMigrator._get_ddls')
+    # @patch('pyvertica.migrate.VerticaMigrator._target', create=True)
+    # @patch('pyvertica.migrate.VerticaMigrator._set_connections')
+    # @patch('pyvertica.migrate.VerticaMigrator._sanity_checks')
+    # def test_migrate_ddls(self, checks, cnx, target, get_ddls,
+    # is_proj, find_proj,
+    #  is_seq, upd_seq,
+    #   uses_ident,
+    #   rep_ident):
 
-        # # No ddl, empty
-        # get_ddls.return_value = ''
-        # self.get_migrator().migrate_ddls([])
-        # self.assertEqual(target.execute.called, 0)
+    #     # # No ddl, empty
+    #     # get_ddls.return_value = ''
+    #     # self.get_migrator().migrate_ddls([])
+    #     # self.assertEqual(target.execute.called, 0)
 
-        # # No ddl, None
-        # get_ddls.return_value = None
-        # self.get_migrator().migrate_ddls([])
-        # self.assertEqual(target.execute.called, 0)
+    #     # # No ddl, None
+    #     # get_ddls.return_value = None
+    #     # self.get_migrator().migrate_ddls([])
+    #     # self.assertEqual(target.execute.called, 0)
 
-        # # Should never happen but accounted for anyway
-        # get_ddls.return_value = ';'
-        # self.get_migrator().migrate_ddls([])
-        # self.assertEqual(target.execute.called, 0)
+    #     # # Should never happen but accounted for anyway
+    #     # get_ddls.return_value = ';'
+    #     # self.get_migrator().migrate_ddls([])
+    #     # self.assertEqual(target.execute.called, 0)
 
-        # proj only
-        # get_ddls.return_value = 'CREATE PROJECTION schema.proj'
-        # self.get_migrator().migrate_ddls([])
-        # self.assertEqual(target.execute.called, False)
-        # self.assertEqual(is_proj.called, True)
+    #     # proj only
+    #     # get_ddls.return_value = 'CREATE PROJECTION schema.proj'
+    #     # self.get_migrator().migrate_ddls([])
+    #     # self.assertEqual(target.execute.called, False)
+    #     # self.assertEqual(is_proj.called, True)
 
-        # sequence
-        get_ddls.return_value = '''CREATE SEQUENCE schema.seq_name
-        '''
-        is_proj.return_value = False
-        self.get_migrator().migrate_ddls([])
-        self.assertEqual(target.execute.called, False)
-        self.assertEqual(is_seq.called, True)
-        self.assertEqual(upd_seq.called, True)
+    #     # sequence
+    #     get_ddls.return_value = '''CREATE SEQUENCE schema.seq_name
+    #     '''
+    #     is_proj.return_value = False
+    #     self.get_migrator().migrate_ddls([])
+    #     self.assertEqual(target.execute.called, False)
+    #     self.assertEqual(is_seq.called, True)
+    #     self.assertEqual(upd_seq.called, True)
 
 
