@@ -40,6 +40,15 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    '--clever_ddls',
+    dest='clever_ddls',
+    action='store_true',
+    help='If when copying a DDL an object with the same name already exists, skip the copy.',
+    default=False
+)
+
+
+parser.add_argument(
     '--skip_data',
     dest='skip_data',
     action='store_true',
