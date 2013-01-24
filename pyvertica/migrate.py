@@ -69,7 +69,6 @@ class VerticaMigrator(object):
         self._target_dsn = target
         self._commit = commit
         self._args = kwargs
-
         self._set_connections()
 
         self._sanity_checks()
@@ -141,10 +140,7 @@ class VerticaMigrator(object):
             logger.info('Exporting object is done via vsql')
             details = connection_details(self._source_con)
 
-            if 'source_pwd' in self._args and self._args.source_pwd is not None:
-                details['pwd'] = self._args.source_pwd
-            else:
-                details['pwd'] = ''
+            details['pwd'] = self._args.get('source_pwd', '')
 
             err = tempfile.TemporaryFile()
             try:
