@@ -1,5 +1,3 @@
-import argparse
-import copy
 import unittest2 as unittest
 
 from subprocess import CalledProcessError
@@ -142,216 +140,194 @@ class VerticaMigratorTestCase(unittest.TestCase):
         ret = self.get_migrator()._get_ddls()
         self.assertEqual(ret, sql)
 
-    # @patch('subprocess.check_output')
-    # @patch('pyvertica.migrate.VerticaMigrator._source_con', create=True)
-    # @patch('pyvertica.migrate.VerticaMigrator._source', create=True)
-    # @patch('pyvertica.migrate.VerticaMigrator._set_connections')
-    # @patch('pyvertica.migrate.VerticaMigrator._sanity_checks')
-    # def test__get_ddls_empty_with_pwd(self, checks, cnx, source, source_con, subp):
-    #     """
-    #     Test :py:meth:`.VerticaMigrator._get_ddls`.
-    #     None from DB, get from subprocess, password sent to vsql
-    #     """
-    #     sql = 'CREATE TABLE cheese (id INT)'
-    #     subp.return_value = sql
-    #     source.execute.return_value.fetchone.return_value = None
-    #     ret = self.get_migrator(source_pwd='tartiflette')._get_ddls()
-    #     self.assertEqual(ret, sql)
+    @patch('subprocess.check_output')
+    @patch('pyvertica.migrate.VerticaMigrator._source_con', create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._source', create=True)
+    def test__get_ddls_empty_with_pwd(self, source, source_con, subp):
+        """
+        Test :py:meth:`.VerticaMigrator._get_ddls`.
+        None from DB, get from subprocess, password sent to vsql
+        """
+        sql = 'CREATE TABLE cheese (id INT)'
+        subp.return_value = sql
+        source.execute.return_value.fetchone.return_value = None
+        ret = self.get_migrator(source_pwd='tartiflette')._get_ddls()
+        self.assertEqual(ret, sql)
 
-    # @patch('subprocess.check_output')
-    # @patch('pyvertica.migrate.VerticaMigrator._source_con', create=True)
-    # @patch('pyvertica.migrate.VerticaMigrator._source', create=True)
-    # @patch('pyvertica.migrate.VerticaMigrator._set_connections')
-    # @patch('pyvertica.migrate.VerticaMigrator._sanity_checks')
-    # def test__get_ddls_empty_with_exception(self, checks, cnx, source, source_con, subp):
-    #     """
-    #     Test :py:meth:`.VerticaMigrator._get_ddls`.
-    #     None from DB, exception in subprocess.
-    #     """
-    #     source.execute.return_value.fetchone.return_value = None
-    #     subp.side_effect = CalledProcessError(42, 'Boom')
-    #     self.assertRaises(VerticaMigratorError, self.get_migrator()._get_ddls)
+    @patch('pyvertica.migrate.subprocess.check_output')
+    @patch('pyvertica.migrate.VerticaMigrator._source_con', create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._source', create=True)
+    def test__get_ddls_empty_with_exception(self, source, source_con, check_out):
+        """
+        Test :py:meth:`.VerticaMigrator._get_ddls`.
+        None from DB, exception in subprocess.
+        """
+        source.execute.return_value.fetchone.return_value = None
+        check_out.side_effect = CalledProcessError(42, 'Boom')
+        self.assertRaises(VerticaMigratorError, self.get_migrator()._get_ddls)
 
-    # @patch('pyvertica.migrate.VerticaMigrator._source', create=True)
-    # @patch('pyvertica.migrate.VerticaMigrator._set_connections')
-    # @patch('pyvertica.migrate.VerticaMigrator._sanity_checks')
-    # def test__get_ddls_not_empty(self, checks, cnx, source):
-    #     """
-    #     Test :py:meth:`.VerticaMigrator._get_ddls`.
-    #     Result from DB.
-    #     """
-    #     sql = 'CREATE TABLE cheese (id INT'
-    #     source.execute.return_value.fetchone.return_value = [sql]
-    #     ret = self.get_migrator()._get_ddls()
-    #     self.assertEqual(ret, sql)
+    @patch('pyvertica.migrate.subprocess.check_output', create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._source_con', create=True)
+    def test__get_ddls_not_empty(self, source_con, check_out):
+        """
+        Test :py:meth:`.VerticaMigrator._get_ddls`.
+        Result from DB.
+        """
+        ret = self.get_migrator()._get_ddls()
+        self.assertEqual(ret, check_out.return_value)
 
     # ### SEQUENCE manipulation
+    def test_sequence_regexp_valid(self):
+        """
+        Test regular expression VerticaMigrator._find_seqs
+        Test a valid syntax.
+        """
+        re = self.get_migrator()._find_seqs.search
+        seq = 'CREATE SEQUENCE schema.seq_name'
+        m_seqs = re(seq)
+        schema = m_seqs.group('schema')
+        seqname = m_seqs.group('seq')
+        self.assertEqual(schema, 'schema')
+        self.assertEqual(seqname, 'seq_name')
 
-    # @patch('pyvertica.migrate.VerticaMigrator._set_connections')
-    # @patch('pyvertica.migrate.VerticaMigrator._sanity_checks')
-    # def test_sequence_regexp_valid(self, checks, cnx):
-    #     """
-    #     Test regular expression VerticaMigrator._find_seqs
-    #     Test a valid syntax.
-    #     """
-    #     re = self.get_migrator()._find_seqs.search
-    #     seq = 'CREATE SEQUENCE schema.seq_name'
-    #     m_seqs = re(seq)
-    #     schema = m_seqs.group('schema')
-    #     seqname = m_seqs.group('seq')
-    #     self.assertEqual(schema, 'schema')
-    #     self.assertEqual(seqname, 'seq_name')
+    def test_sequence_regexp_invalid(self):
+        """
+        Test regular expression VerticaMigrator._find_seqs
+        Test an invalid syntax.
+        """
+        re = self.get_migrator()._find_seqs.search
+        seq = 'CREATE TABLE plop (id int)'
+        m_seqs = re(seq)
+        self.assertEqual(m_seqs, None)
 
-    # @patch('pyvertica.migrate.VerticaMigrator._set_connections')
-    # @patch('pyvertica.migrate.VerticaMigrator._sanity_checks')
-    # def test_sequence_regexp_invalid(self, checks, cnx):
-    #     """
-    #     Test regular expression VerticaMigrator._find_seqs
-    #     Test an invalid syntax.
-    #     """
-    #     re = self.get_migrator()._find_seqs.search
-    #     seq = 'CREATE TABLE plop (id int)'
-    #     m_seqs = re(seq)
-    #     self.assertEqual(m_seqs, None)
+    def test__is_sequence_true(self):
+        """
+        Test :py:meth:`.VerticaMigrator._is_sequence`,
+        with a valid sequence
+        """
+        seq = self.get_migrator()._is_sequence(
+            "CREATE SEQUENCE schema.seq_name"
+        )
+        self.assertEqual(seq, True)
 
-    # @patch('pyvertica.migrate.VerticaMigrator._set_connections')
-    # @patch('pyvertica.migrate.VerticaMigrator._sanity_checks')
-    # def test__is_sequence_true(self, checks, cnx):
-    #     """
-    #     Test :py:meth:`.VerticaMigrator._is_sequence`,
-    #     with a valid sequence
-    #     """
-    #     seq = self.get_migrator()._is_sequence(
-    #         "CREATE SEQUENCE schema.seq_name"
-    #     )
-    #     self.assertEqual(seq, True)
+    def test__is_sequence_false(self):
+        """
+        Test :py:meth:`.VerticaMigrator._is_sequence`,
+        with a non-sequence DDL
+        """
+        seq = self.get_migrator()._is_sequence(
+            "CREATE TABLE s.t (id INT)"
+        )
+        self.assertEqual(seq, False)
 
-    # @patch('pyvertica.migrate.VerticaMigrator._set_connections')
-    # @patch('pyvertica.migrate.VerticaMigrator._sanity_checks')
-    # def test__is_sequence_false(self, checks, cnx):
-    #     """
-    #     Test :py:meth:`.VerticaMigrator._is_sequence`,
-    #     with a non-sequence DDL
-    #     """
-    #     seq = self.get_migrator()._is_sequence(
-    #         "CREATE TABLE s.t (id INT)"
-    #     )
-    #     self.assertEqual(seq, False)
-
-    # @patch('pyvertica.migrate.VerticaMigrator._source', create=True)
-    # @patch('pyvertica.migrate.VerticaMigrator._set_connections')
-    # @patch('pyvertica.migrate.VerticaMigrator._sanity_checks')
-    # def test_update_sequence_start(self, checks, cnx, source):
-    #     """
-    #     Test :py:meth:`.VerticaMigrator._update_sequence_start`,
-    #     """
-    #     source.execute.return_value.fetchone.return_value = [42]
-    #     seq = 'CREATE SEQUENCE schema.seq_name'
-    #     res = self.get_migrator()._update_sequence_start(seq)
-    #     self.assertEqual(res, seq + ' START WITH 43')
+    @patch('pyvertica.migrate.VerticaMigrator._source', create=True)
+    def test_update_sequence_start(self, source):
+        """
+        Test :py:meth:`.VerticaMigrator._update_sequence_start`,
+        """
+        source.execute.return_value.fetchone.return_value = [42]
+        seq = 'CREATE SEQUENCE schema.seq_name'
+        res = self.get_migrator()._update_sequence_start(seq)
+        self.assertEqual(res, seq + ' START WITH 43')
 
     # ### test IDENTITY
 
-    # @patch('pyvertica.migrate.VerticaMigrator._set_connections')
-    # @patch('pyvertica.migrate.VerticaMigrator._sanity_checks')
-    # def test_identity_regexp_valid(self, checks, cnx):
-    #     """
-    #     Test regular expression VerticaMigrator._find_identity
-    #     Test an invalid syntax.
-    #     """
-    #     re = self.get_migrator()._find_identity.search
-    #     ident = '''CREATE TABLE schema.cheese (
-    #         id IDENTITY,
-    #         runny INT)'''
-    #     m_ids = re(ident)
-    #     schema = m_ids.group('schema')
-    #     table = m_ids.group('table')
-    #     col = m_ids.group('col')
-    #     self.assertEqual(schema, 'schema')
-    #     self.assertEqual(table, 'cheese')
-    #     self.assertEqual(col, 'id')
+    def test_identity_regexp_valid(self):
+        """
+        Test regular expression VerticaMigrator._find_identity
+        Test a valid syntax.
+        """
+        re = self.get_migrator()._find_identity.search
+        ident = '''CREATE TABLE schema.cheese (
+            id IDENTITY,
+            runny INT)'''
+        m_ids = re(ident)
+        schema = m_ids.group('schema')
+        table = m_ids.group('table')
+        col = m_ids.group('col')
+        self.assertEqual(schema, 'schema')
+        self.assertEqual(table, 'cheese')
+        self.assertEqual(col, 'id')
 
-    # @patch('pyvertica.migrate.VerticaMigrator._set_connections')
-    # @patch('pyvertica.migrate.VerticaMigrator._sanity_checks')
-    # def test_identity_regexp_invalid(self, checks, cnx):
-    #     """
-    #     Test regular expression VerticaMigrator._find_identity
-    #     Test an invalid syntax.
-    #     """
-    #     re = self.get_migrator()._find_identity.search
-    #     ident = '''CREATE TABLE schema.cheese (
-    #         id INT,
-    #         runny INT)'''
-    #     m_ids = re(ident)
-    #     self.assertEqual(m_ids, None)
+    def test_identity_regexp_invalid(self):
+        """
+        Test regular expression VerticaMigrator._find_identity
+        Test an invalid syntax.
+        """
+        re = self.get_migrator()._find_identity.search
+        ident = '''CREATE TABLE schema.cheese (
+            id INT,
+            runny INT)'''
+        m_ids = re(ident)
+        self.assertEqual(m_ids, None)
 
-    # @patch('pyvertica.migrate.VerticaMigrator._set_connections')
-    # @patch('pyvertica.migrate.VerticaMigrator._sanity_checks')
-    # def test__uses_identity(self, checks, cnx):
-    #     """
-    #     """
-    #     seq_true = self.get_migrator()._uses_identity(
-    #         '''CREATE TABLE schema.cheese (
-    #             id IDENTITY,
-    #             runny BOOLEAN
-    #             )
-    #             '''
-    #     )
-    #     self.assertEqual(seq_true, True)
+    def test__uses_identity_true(self):
+        """
+        """
+        seq_true = self.get_migrator()._uses_identity(
+            '''CREATE TABLE schema.cheese (
+                id IDENTITY,
+                runny BOOLEAN
+                )
+                '''
+        )
+        self.assertEqual(seq_true, True)
 
-    #     seq_false = self.get_migrator()._uses_identity(
-    #         '''CREATE TABLE schema.cheese (
-    #             id INT,
-    #             runny BOOLEAN
-    #             )
-    #             '''
-    #     )
-    #     self.assertEqual(seq_false, False)
+    def test__uses_identity_false(self):
+        seq_false = self.get_migrator()._uses_identity(
+            '''CREATE TABLE schema.cheese (
+                id INT,
+                runny BOOLEAN
+                )
+                '''
+        )
+        self.assertEqual(seq_false, False)
 
-    # @patch('pyvertica.migrate.VerticaMigrator._source', create=True)
-    # @patch('pyvertica.migrate.VerticaMigrator._set_connections')
-    # @patch('pyvertica.migrate.VerticaMigrator._sanity_checks')
-    # def test__replace_identity(self, checks, cnx, source):
+    @patch('pyvertica.migrate.VerticaMigrator._source', create=True)
+    def test__replace_initialised_identity(self, source):
 
-    #     source.execute.return_value.fetchone.side_effect = [['cheezy_seq'], [42], ['cheezy_seq'], [None]]
+        source.execute.return_value.fetchone.side_effect = [['cheezy_seq'], [42]]
 
-    #     ddl, new_id = self.get_migrator()._replace_identity(
-    #         '''CREATE TABLE schema.cheese (
-    #             id IDENTITY,
-    #             runny BOOLEAN
-    #             )
-    #             '''
-    #     )
-    #     self.assertEqual(ddl, '''CREATE TABLE schema.cheese (
-    #             id INT NOT NULL,
-    #             runny BOOLEAN
-    #             )
-    #             ''')
-    #     self.assertEqual(new_id, {'schema': 'schema',
-    #                 'table': 'cheese',
-    #                 'col': 'id',
-    #                 'start':  43,
-    #                 'name': 'cheezy_seq'
-    #                 })
+        ddl, new_id = self.get_migrator()._replace_identity(
+            '''CREATE TABLE schema.cheese (
+                id IDENTITY,
+                runny BOOLEAN
+                )
+                '''
+        )
+        self.assertEqual(ddl, '''CREATE TABLE schema.cheese (
+                id INT NOT NULL,
+                runny BOOLEAN
+                )
+                ''')
+        self.assertEqual(new_id, {'schema': 'schema',
+                    'table': 'cheese',
+                    'col': 'id',
+                    'start':  43,
+                    'name': 'cheezy_seq'
+                    })
 
-    #     ddl, new_id = self.get_migrator()._replace_identity(
-    #         '''CREATE TABLE schema.cheese (
-    #             id IDENTITY,
-    #             runny BOOLEAN
-    #             )
-    #             '''
-    #     )
-    #     self.assertEqual(ddl, '''CREATE TABLE schema.cheese (
-    #             id INT NOT NULL,
-    #             runny BOOLEAN
-    #             )
-    #             ''')
-    #     self.assertEqual(new_id, {'schema': 'schema',
-    #                 'table': 'cheese',
-    #                 'col': 'id',
-    #                 'start':  1,
-    #                 'name': 'cheezy_seq'
-    #                 })
+    @patch('pyvertica.migrate.VerticaMigrator._source', create=True)
+    def test__replace_uninitialised_identity(self, source):
+        source.execute.return_value.fetchone.side_effect = [['cheezy_seq'], [None]]
+        ddl, new_id = self.get_migrator()._replace_identity(
+            '''CREATE TABLE schema.cheese (
+                id IDENTITY,
+                runny BOOLEAN
+                )
+                '''
+        )
+        self.assertEqual(ddl, '''CREATE TABLE schema.cheese (
+                id INT NOT NULL,
+                runny BOOLEAN
+                )
+                ''')
+        self.assertEqual(new_id, {'schema': 'schema',
+                    'table': 'cheese',
+                    'col': 'id',
+                    'start':  1,
+                    'name': 'cheezy_seq'
+                    })
 
     # ### test PROJECTION
 
