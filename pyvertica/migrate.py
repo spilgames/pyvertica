@@ -1,9 +1,10 @@
-import argparse
 import logging
 import re
 import subprocess
-from subprocess import CalledProcessError
 import tempfile
+from subprocess import CalledProcessError
+
+import pyodbc
 
 from pyvertica.connection import get_connection, connection_details
 from pyvertica.batch import VerticaBatch
@@ -131,7 +132,6 @@ class VerticaMigrator(object):
         """
         logger.info('Getting DDLs...')
         export_sql = "SELECT EXPORT_OBJECTS('', '{0}', False)".format(','.join(objects))
-        print export_sql
 
         # I often have a segfault when running this, so let's fallback by default
         # from_db = self._source.execute(export_sql).fetchone()
@@ -268,15 +268,21 @@ class VerticaMigrator(object):
         return ddl, identity
 
     def _is_proj(self, ddl):
-            """
-            """
-            #print 'in proj : ' + ddl
-            m_projs = self._find_proj.search(ddl)
-            #print m_projs
-            if m_projs:
-                return True
-            else:
-                return False
+        """
+        Check if a DDL is a projection
+
+        :param ddl:
+            A ``str`` of DDLs.
+
+        :return:
+            A ``bool`` telling if the DDL is a projection or not.
+
+        """
+        m_projs = self._find_proj.search(ddl)
+        if m_projs:
+            return True
+        else:
+            return False
 
     def _get_table_list(self, con, objects):
         """
@@ -285,7 +291,7 @@ class VerticaMigrator(object):
         return only the table of the schema, if it is a table it will only
         return the table itself.
 
-         :param con:
+        :param con:
             A pyodbc connection object.
 
         :return:
@@ -312,13 +318,19 @@ class VerticaMigrator(object):
             tables_sql += ' AND ((' + ') OR ('.join(where) + '))'
 
         tret = con.execute(tables_sql).fetchall()
-        print tret
         return tret
 
     def _connection_type(self):
+        """
+        Finds out if the migration can be done directly via the EXPORT in
+        Vertica, or if data needs to be loaded via odbc.
+
+        :return:
+            A ``str`` stating 'direct' or 'odbc'.
+        """
         details = connection_details(self._target)
 
-        details['pwd'] = self._args.target_pwd
+        details['pwd'] = self._args.get('target_pwd', '')
 
         connect = "CONNECT TO VERTICA {db} USER {user} PASSWORD '{pwd}' ON '{host}',5433".format(
                 db=details['db'],
@@ -335,17 +347,18 @@ class VerticaMigrator(object):
     def _exec_ddl(self, ddl):
         """
         Execute a ddl, taking care of the commit or clever_ddl options
+
         :param ddl:
             A ddl in a ``str``.
         """
         if self._commit:
             try:
                 self._target.execute(ddl)
-            except:
-                if self._args.clever_ddls:
+            except pyodbc.ProgrammingError as e:
+                if (e.args[0] == '42601') and self._args['clever_ddls']:
                     logger.info('DDL already exists, skip: {0}'.format(ddl.split('\n', 1)[0]))
                 else:
-                    raise
+                    raise e
 
     def migrate_ddls(self, objects=[]):
         """
@@ -363,6 +376,8 @@ class VerticaMigrator(object):
             - create a sequence based on this
             - alter table to use the sequence
           - execute each statement (only if commit)
+
+        :param ddl:
         """
         ddls = self._get_ddls(objects)
 
@@ -436,7 +451,7 @@ class VerticaMigrator(object):
             tname = '{s}.{t}'.format(s=table[0], t=table[1])
             logging.info('Exporting {0}'.format(tname))
             if con_type == 'direct':
-                sql = 'EXPORT TO VERTICA stgdwh.{s}.{t} SELECT * FROM FROM {t} LIMIT l'.format(tname, l=self._args.limit)
+                sql = 'EXPORT TO VERTICA stgdwh.{t} SELECT * FROM {t} LIMIT l'.format(t=tname, l=self._args.get('limit', 'ALL'))
                 logger.warning(sql + '...')
                 nbrows = 0
                 if self._commit:
@@ -444,7 +459,7 @@ class VerticaMigrator(object):
                     nbrows = self._source.rowcount
                 logger.warning('%s rows exported.' % nbrows)
             elif con_type == 'odbc':
-                sql = 'SELECT * FROM {t} LIMIT {l}'.format(t=tname, l=self._args.limit)
+                sql = 'SELECT * FROM {t} LIMIT {l}'.format(t=tname, l=self._args.get('limit', 'ALL'))
                 logger.warning(sql)
 
                 self._source.execute(sql)
@@ -454,7 +469,7 @@ class VerticaMigrator(object):
                     batch = VerticaBatch(
                         dsn=self._target_dsn,
                         table_name=table[0] + '.' + table[1],
-                        truncate_table=self._args.truncate,
+                        truncate_table=self._args.get('truncate', False),
                     )
                 if self._commit:
                     while True:

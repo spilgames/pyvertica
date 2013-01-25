@@ -1,5 +1,7 @@
 import unittest2 as unittest
 
+import pyodbc
+
 from subprocess import CalledProcessError
 from mock import Mock, call, patch
 from pyvertica.migrate import VerticaMigrator, VerticaMigratorError
@@ -331,102 +333,131 @@ class VerticaMigratorTestCase(unittest.TestCase):
 
     # ### test PROJECTION
 
-    # @patch('pyvertica.migrate.VerticaMigrator._set_connections')
-    # @patch('pyvertica.migrate.VerticaMigrator._sanity_checks')
-    # def test__is_proj(self, checks, cnx):
-    #     proj_true = self.get_migrator()._is_proj('''
-    #         CREATE PROJECTION schema.something
-    #         ( col1, col2) AS SELECT * FROM schema.table
-    #         SEGMENTED BY hash(cols) ALL NODES OFFSET 0;
-    #         ''')
-    #     self.assertEqual(proj_true, True)
-    #     proj_false = self.get_migrator()._is_proj('''
-    #         CREATE TABLE schema.something
-    #         blah
-    #         ''')
-    #     self.assertEqual(proj_false, False)
+    def test__is_proj_true(self):
+        proj_true = self.get_migrator()._is_proj('''
+            CREATE PROJECTION schema.something
+            ( col1, col2) AS SELECT * FROM schema.table
+            SEGMENTED BY hash(cols) ALL NODES OFFSET 0;
+            ''')
+        self.assertEqual(proj_true, True)
+
+    def test__is_proj_false(self):
+        proj_false = self.get_migrator()._is_proj('''
+            CREATE TABLE schema.something
+            blah
+            ''')
+        self.assertEqual(proj_false, False)
 
     # ### Get table list
 
-    # @patch('pyvertica.migrate.get_connection')
-    # @patch('pyvertica.migrate.VerticaMigrator._set_connections')
-    # @patch('pyvertica.migrate.VerticaMigrator._sanity_checks')
-    # def test__get_table_list(self, checks, cnx, con):
-    #     base_sql = 'SELECT table_schema as s, table_name as t FROM tables WHERE is_system_table=false AND is_temp_table=false'
+    # get_table_list can not be unit tested in a useful way.
 
-    #     self.get_migrator()._get_table_list(con, [])
-    #     self.get_migrator()._get_table_list(con, ['dv', 'stg.table'])
-    #     self.assertEqual([
-    #         call(base_sql),
-    #         call(base_sql + " AND ((table_schema='dv') OR (table_schema='stg' AND table_name='table'))"),
-    #     ], con.execute.call_args_list)
+    ### Connection type
+    @patch('pyvertica.migrate.VerticaMigrator._source', create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._target', create=True)
+    def test__connection_type(self, target, source):
 
-    # ### Connection type
-    # @patch('pyvertica.migrate.VerticaMigrator._source', create=True)
-    # @patch('pyvertica.migrate.VerticaMigrator._target', create=True)
-    # @patch('pyvertica.migrate.connection_details')
-    # @patch('pyvertica.migrate.VerticaMigrator._set_connections')
-    # @patch('pyvertica.migrate.VerticaMigrator._sanity_checks')
-    # def test__connection_type(self, checks, cnx, details, target, source):
-    #     import pyodbc
+        migrator = self.get_migrator()
+        self.assertEqual('direct', migrator._connection_type())
 
-    #     migrator = self.get_migrator()
-    #     migrator._args.target_host = None
-    #     migrator._args.target_pwd = 'pwd'
-    #     migrator._args.target_port = '5433'
-    #     ctype_direct = migrator._connection_type()
-    #     self.assertEqual(ctype_direct, 'direct')
+        source.execute.side_effect = Exception('Cannot Connect')
+        self.assertEqual('odbc', migrator._connection_type())
 
-    #     migrator._args.target_host = 'host'
-    #     source.execute.side_effect = pyodbc.Error('Cannot Connect')
-    #     ctype_odbc = migrator._connection_type()
-    #     self.assertEqual(ctype_odbc, 'odbc')
+    ### DDL Migration
 
-    # ### DDL migration
-    # @patch('pyvertica.migrate.VerticaMigrator._replace_identity')
-    # @patch('pyvertica.migrate.VerticaMigrator._uses_identity', autospec=True)
-    # @patch('pyvertica.migrate.VerticaMigrator._update_sequence_start')
-    # @patch('pyvertica.migrate.VerticaMigrator._is_sequence', autospec=True)
-    # @patch('pyvertica.migrate.VerticaMigrator._find_proj', autospec=True)
-    # @patch('pyvertica.migrate.VerticaMigrator._is_proj', autospec=True)
-    # @patch('pyvertica.migrate.VerticaMigrator._get_ddls')
-    # @patch('pyvertica.migrate.VerticaMigrator._target', create=True)
-    # @patch('pyvertica.migrate.VerticaMigrator._set_connections')
-    # @patch('pyvertica.migrate.VerticaMigrator._sanity_checks')
-    # def test_migrate_ddls(self, checks, cnx, target, get_ddls,
-    # is_proj, find_proj,
-    #  is_seq, upd_seq,
-    #   uses_ident,
-    #   rep_ident):
+    def test__exec_ddl_already_exists(self):
+        migrator = self.get_migrator(clever_ddls=True)
+        migrator._commit = True
+        migrator._target = Mock()
+        migrator._target.execute.side_effect = pyodbc.ProgrammingError(
+            '42601', 'message')
+        migrator._exec_ddl('DDL')
 
-    #     # # No ddl, empty
-    #     # get_ddls.return_value = ''
-    #     # self.get_migrator().migrate_ddls([])
-    #     # self.assertEqual(target.execute.called, 0)
+    def test__exec_ddl_other_error(self):
+        migrator = self.get_migrator(clever_ddls=True)
+        migrator._commit = True
+        migrator._target = Mock()
+        migrator._target.execute.side_effect = pyodbc.ProgrammingError(
+            '42', 'message')
 
-    #     # # No ddl, None
-    #     # get_ddls.return_value = None
-    #     # self.get_migrator().migrate_ddls([])
-    #     # self.assertEqual(target.execute.called, 0)
+        self.assertRaises(pyodbc.ProgrammingError, migrator._exec_ddl, 'DDL')
 
-    #     # # Should never happen but accounted for anyway
-    #     # get_ddls.return_value = ';'
-    #     # self.get_migrator().migrate_ddls([])
-    #     # self.assertEqual(target.execute.called, 0)
+    def test_migrate_ddls_None(self):
+        migrator = self.get_migrator()
+        migrator._get_ddls = Mock(return_value=None)
+        migrator._exec_ddl = Mock()
+        migrator.migrate_ddls()
+        self.assertEqual(0, migrator._exec_ddl.call_count)
 
-    #     # proj only
-    #     # get_ddls.return_value = 'CREATE PROJECTION schema.proj'
-    #     # self.get_migrator().migrate_ddls([])
-    #     # self.assertEqual(target.execute.called, False)
-    #     # self.assertEqual(is_proj.called, True)
+    def test_migrate_ddls_empty(self):
+        migrator = self.get_migrator()
+        migrator._get_ddls = Mock(return_value='')
+        migrator._exec_ddl = Mock()
+        migrator.migrate_ddls()
+        self.assertEqual(0, migrator._exec_ddl.call_count)
 
-    #     # sequence
-    #     get_ddls.return_value = '''CREATE SEQUENCE schema.seq_name
-    #     '''
-    #     is_proj.return_value = False
-    #     self.get_migrator().migrate_ddls([])
-    #     self.assertEqual(target.execute.called, False)
-    #     self.assertEqual(is_seq.called, True)
-    #     self.assertEqual(upd_seq.called, True)
+    def test_migrate_ddls_proj(self):
+        migrator = self.get_migrator()
+        migrator._get_ddls = Mock(return_value='not empty')
+        migrator._is_proj = Mock(return_value=True)
+        migrator._exec_ddl = Mock()
+        migrator.migrate_ddls()
+        self.assertEqual(0, migrator._exec_ddl.call_count)
 
+    def test_migrate_ddls_sequence(self):
+        migrator = self.get_migrator()
+        migrator._get_ddls = Mock(return_value='not empty')
+        migrator._is_proj = Mock(return_value=False)
+        migrator._is_sequence = Mock(return_value=True)
+        migrator._update_sequence_start = Mock(return_value='CREATE SEQ')
+        migrator._uses_identity = Mock(return_value=False)
+        migrator._exec_ddl = Mock()
+        migrator.migrate_ddls()
+        migrator._exec_ddl.assert_called_once_with(
+            migrator._update_sequence_start.return_value)
 
+    def test_migrate_ddls_identity(self):
+        migrator = self.get_migrator()
+        migrator._commit = True
+        migrator._get_ddls = Mock(return_value='not empty')
+        migrator._is_proj = Mock(return_value=False)
+        migrator._is_sequence = Mock(return_value=False)
+        migrator._uses_identity = Mock(return_value=True)
+        migrator._replace_identity = Mock(return_value=['WITH IDENTITY',
+         {'schema':'s', 'name':'n', 'start':'s', 'table':'t', 'col':'c'}])
+
+        migrator._exec_ddl = Mock()
+        migrator.migrate_ddls()
+        self.assertEqual(call('WITH IDENTITY'),
+            migrator._exec_ddl.call_args_list[0])
+        self.assertEqual(3, migrator._exec_ddl.call_count)
+
+    ### Data migration
+    @patch('pyvertica.migrate.VerticaMigrator._source', create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._target', create=True)
+    def test_migrate_data_direct(self, target, source):
+        migrator = self.get_migrator()
+        migrator._commit = True
+        migrator._connection_type = Mock(return_value='direct')
+        migrator._get_table_list = Mock(return_value=['s.t'])
+        migrator.migrate_data('')
+        assert(migrator._source.execute.call_args_list[0][0][0].startswith('EXPORT'))
+
+    @patch('pyvertica.migrate.VerticaMigrator._source', create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._target', create=True)
+    @patch('pyvertica.migrate.VerticaBatch', Mock())
+    def test_migrate_data_odbc(self, target, source):
+        migrator = self.get_migrator()
+        migrator._commit = True
+        source.fetchone.side_effect = ['1', None]
+        migrator._connection_type = Mock(return_value='odbc')
+        migrator._get_table_list = Mock(return_value=['s.t'])
+        migrator.migrate_data('')
+        assert(migrator._source.execute.call_args_list[0][0][0].startswith('SELECT'))
+
+    @patch('pyvertica.migrate.VerticaMigrator._source', create=True)
+    def test_migrate_data_other(self, source):
+        migrator = self.get_migrator()
+        migrator._get_table_list = Mock(return_value=['s.t'])
+        migrator._connection_type = Mock(return_value='nope')
+        self.assertRaises(VerticaMigratorError, migrator.migrate_data, '')
