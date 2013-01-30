@@ -144,7 +144,7 @@ if __name__ == '__main__':
     setup_log_handler(args)
     logger = logging.getLogger(__name__)
 
-    migrator = VerticaMigrator(args.source, args.target, args.commit, args)
+    migrator = VerticaMigrator(**vars(args))
     if args.skip_ddls:
         logger.info('Do not migrate DDLs.')
     else:
