@@ -445,22 +445,23 @@ class VerticaMigrator(object):
 
         con_type = self._connection_type()
 
+        logger.warning('Connection type: {t}'.format(t=con_type))
+
         tables = self._get_table_list(self._source, objects)
 
         for table in tables:
             tname = '{s}.{t}'.format(s=table[0], t=table[1])
-            logging.info('Exporting {0}'.format(tname))
+            logging.info('Exporting data of {0}'.format(tname))
             if con_type == 'direct':
-                sql = 'EXPORT TO VERTICA stgdwh.{t} SELECT * FROM {t} LIMIT l'.format(t=tname, l=self._args.get('limit', 'ALL'))
-                logger.warning(sql + '...')
+                target_details = connection_details(self._target)
+                sql = 'EXPORT TO VERTICA {db}.{t} SELECT * FROM {t} LIMIT l'.format(db=target_details['db'], t=tname, l=self._args.get('limit', 'ALL'))
                 nbrows = 0
                 if self._commit:
                     self._source.execute(sql)
                     nbrows = self._source.rowcount
-                logger.warning('%s rows exported.' % nbrows)
+                logger.info('%s rows exported.' % nbrows)
             elif con_type == 'odbc':
                 sql = 'SELECT * FROM {t} LIMIT {l}'.format(t=tname, l=self._args.get('limit', 'ALL'))
-                logger.warning(sql)
 
                 self._source.execute(sql)
                 batch = None
@@ -486,10 +487,10 @@ class VerticaMigrator(object):
             else:
                 raise VerticaMigratorError("Connection type from source to target not expected ('{0}').".format(con_type))
 
-        wouldhavebeen = 'would have been (with --comit)'
+        wouldhavebeen = 'would have been (with --commit)'
         if self._commit:
             wouldhavebeen = ''
-        logger.info('All data {0} exported.'.format(wouldhavebeen))
+        logger.warning('All data {0} exported.'.format(wouldhavebeen))
 
         if con_type == 'direct':
-            self._source.execute('DISCONNECT stgdwh')
+            self._source.execute('DISCONNECT {db}'.format(db=target_details['db']))
