@@ -1,7 +1,7 @@
 import logging
 import re
 import subprocess
-import tempfile
+import sys
 from subprocess import CalledProcessError
 
 import pyodbc
@@ -153,7 +153,6 @@ class VerticaMigrator(object):
                     '-w',  details['pwd'],
                     '-c',  export_sql
                     ],  stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                print pr.communicate()
                 ddls, err = pr.communicate()
             except CalledProcessError as e:
                 raise VerticaMigratorError("""
@@ -379,15 +378,24 @@ class VerticaMigrator(object):
 
         :param ddl:
         """
-        ddls = self._get_ddls(objects)
+        objects = self._get_ddls(objects)
 
-        if ddls is None:
+        if objects is None:
             logger.info('No DDLs to migrate found...')
             return
 
-        logger.info('Migrating DDLs...')
+        logger.warning('Migrating DDLs...')
         count = 0
-        for ddl in ddls.split(';'):
+        ddls = objects.split(';')
+
+        # If a ddl fails, it might be because dependent objects are not
+        # migrated yet.
+        # So in case of error, put them in errors, and stop when errors
+        # does not shrink anymore.
+        last_error = sys.maxint
+        errors = []
+
+        for ddl in ddls:
             ddl = ddl.strip()
 
             # pyodbc or vertica statement hangs when executing ''
@@ -408,10 +416,13 @@ class VerticaMigrator(object):
                 ddl, new_seq = self._replace_identity(ddl)
 
             # for display only: 1st line of statement, to display object name
-            logger.warning(ddl.split('\n', 1)[0])
+            logger.info(ddl.split('\n', 1)[0])
 
-            count += 1
-            self._exec_ddl(ddl)
+            try:
+                self._exec_ddl(ddl)
+                count += 1
+            except:
+                errors.append(ddl)
 
             if new_seq is not None:
                 create = 'CREATE SEQUENCE {schema}.{name} START WITH {start}'.format(
@@ -433,10 +444,26 @@ class VerticaMigrator(object):
 
                 count += 1
                 self._exec_ddl(alter)
-        wouldhavebeen = 'would have been (with --comit)'
+
+            # we should have been done, but there were errors
+            # Let's retry them
+            if len(ddls) == 0 and len(errors) > 0:
+                if len(errors) < last_error:
+                    last_error = len(errors)
+                    ddls.extend(errors)
+                else:
+                    #error list is not shrinking
+                    # display all of them
+                    for e in errors:
+                        try:
+                            self._exec_ddl(e)
+                        except Exception as e:
+                            logging.exception(e)
+
+        wouldhavebeen = 'would have been (with --commit)'
         if self._commit:
             wouldhavebeen = ''
-        logger.info('{0} DDLs {1} migrated'.format(count, wouldhavebeen))
+        logger.warning('{0} DDLs {1} migrated'.format(count, wouldhavebeen))
 
     def migrate_data(self, objects):
         """
