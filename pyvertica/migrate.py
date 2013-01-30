@@ -481,7 +481,14 @@ class VerticaMigrator(object):
             logging.info('Exporting data of {0}'.format(tname))
             if con_type == 'direct':
                 target_details = connection_details(self._target)
-                sql = 'EXPORT TO VERTICA {db}.{t} SELECT * FROM {t} LIMIT l'.format(db=target_details['db'], t=tname, l=self._args.get('limit', 'ALL'))
+                limit = self._args.get('limit', 'ALL')
+                sql = 'EXPORT TO VERTICA {db}.{t} '.format(
+                    db=target_details['db'], t=tname)
+                if limit == 'ALL':
+                    sql += ' FROM {t} '.format(t=tname)
+                else:
+                    sql = ' AS SELECT * FROM {t} LIMIT {l}'.format(
+                        t=tname, l=limit)
                 nbrows = 0
                 if self._commit:
                     self._source.execute(sql)
