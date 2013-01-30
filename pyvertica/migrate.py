@@ -137,14 +137,14 @@ class VerticaMigrator(object):
         # from_db = self._source.execute(export_sql).fetchone()
         from_db = None
         if from_db is None:
-            logger.info('Exporting object is done via vsql')
+            logger.warning('Exporting object is done via vsql')
             details = connection_details(self._source_con)
 
             details['pwd'] = self._args.get('source_pwd', '')
-
-            err = tempfile.TemporaryFile()
+            err = 'Unknown error'
             try:
-                ddls = subprocess.check_output([
+                pr = subprocess.Popen([
+                #ddls = subprocess.check_output([
                     '/opt/vertica/bin/vsql',
                     '-U', details['user'],
                     '-h', details['host'],
@@ -152,13 +152,14 @@ class VerticaMigrator(object):
                     '-t',  # rows only
                     '-w',  details['pwd'],
                     '-c',  export_sql
-                    ], stderr=err)
+                    ],  stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                print pr.communicate()
+                ddls, err = pr.communicate()
             except CalledProcessError as e:
-                err.seek(0)
                 raise VerticaMigratorError("""
                     Could not use vsql to get ddls: {0}.
                     Output was: {1}
-                    """.format(e, err.read()))
+                    """.format(e, err))
         else:
             logger.info('From export_objects')
             ddls = from_db[0]
@@ -337,7 +338,6 @@ class VerticaMigrator(object):
                 user=details['user'],
                 host=details['host'],
                 pwd=details['pwd'])
-        logger.warning(connect)
         try:
             self._source.execute(connect)
             return 'direct'
