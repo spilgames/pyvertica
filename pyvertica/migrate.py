@@ -61,6 +61,9 @@ class VerticaMigrator(object):
     # check if we are creating a PROJECTION
     _find_proj = re.compile('^\s*CREATE PROJECTION.*')
 
+    # Check if we are creating a temporary table
+    _find_tmp_table = re.compile('^\s*CREATE TEMPORARY TABLE.*')
+
     def __init__(self, source, target, commit=False, **kwargs):
         logger.debug(
             'Initializing VerticaMigrator from {0} to {1}'.format(
@@ -164,6 +167,19 @@ class VerticaMigrator(object):
             ddls = from_db[0]
 
         return ddls
+
+    def _is_temporary_table(self, ddl):
+        """
+        Is the ddl in parameter a CREATE TEMPORARY TABLE?
+
+        :param ddl:
+            A ddl as a ``str``.
+
+        :return:
+            A ``boolean`` True is yes, False otherwise.
+        """
+        m_tmps = self._find_tmp_table.search(ddl)
+        return m_tmps is not None
 
     def _is_sequence(self, ddl):
         """
@@ -367,6 +383,8 @@ class VerticaMigrator(object):
           - Split by ; to get statement one by one
           - If the statement is a CREATE PROJECTION:
             - do nothing
+          - If the statement is a CREATE TEMPORARY TABLE:
+            - do nothing
           - If the statement is a CREATE SEQUENCE
              - find the current value which will thus be a START WITH
           - If the statement is a CREATE TABLE which define an IDENTITY
@@ -404,6 +422,10 @@ class VerticaMigrator(object):
 
             # do not bother with copying projections over
             if self._is_proj(ddl):
+                continue
+
+            # temporary tables will not be ported
+            if self._is_temporary_table(ddl):
                 continue
 
             # do we need to find the start of a sequence?
