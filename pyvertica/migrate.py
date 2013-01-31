@@ -394,6 +394,9 @@ class VerticaMigrator(object):
             - alter table to use the sequence
           - execute each statement (only if commit)
 
+        - in case of error, add the statement again to the list of DDLS
+          - rerun while the list shrinks at each new iteration
+
         :param ddl:
         """
         objects = self._get_ddls(objects)
@@ -413,8 +416,8 @@ class VerticaMigrator(object):
         last_error = sys.maxint
         errors = []
 
-        for ddl in ddls:
-            ddl = ddl.strip()
+        while len(ddls) > 0:
+            ddl = ddls.pop(0).strip()
 
             # pyodbc or vertica statement hangs when executing ''
             if ddl == '':
@@ -472,7 +475,10 @@ class VerticaMigrator(object):
             if len(ddls) == 0 and len(errors) > 0:
                 if len(errors) < last_error:
                     last_error = len(errors)
+                    logging.warning('{nb} DDL migration errors, retying them.'.format(
+                        nb=last_error))
                     ddls.extend(errors)
+                    errors = []
                 else:
                     #error list is not shrinking
                     # display all of them
