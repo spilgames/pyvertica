@@ -47,7 +47,7 @@ class VerticaMigrator(object):
     """
 
     # regexp to get name of the CREATE SEQUENCE statements
-    _find_seqs = re.compile(
+    _find_seq = re.compile(
         '^\s*CREATE SEQUENCE\s+(?P<schema>.*?)\.(?P<seq>.*?)\s*$')
 
     # regexp to find identity in the CREATE TABLE with IDENTITY statements
@@ -175,7 +175,7 @@ class VerticaMigrator(object):
         :return:
             A ``boolean`` True is yes, False otherwise.
         """
-        m_seqs = self._find_seqs.search(ddl)
+        m_seqs = self._find_seq.search(ddl)
         return m_seqs is not None
 
     def _update_sequence_start(self, ddl):
@@ -189,7 +189,7 @@ class VerticaMigrator(object):
         :return:
             A new ddl ``str``.
         """
-        m_seqs = self._find_seqs.search(ddl)
+        m_seqs = self._find_seq.search(ddl)
         schema = m_seqs.group('schema')
         seq = m_seqs.group('seq')
 
