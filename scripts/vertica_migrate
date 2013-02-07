@@ -89,6 +89,30 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    '--source_not_reconnect',
+    dest='source_reconnect',
+    default=True,
+    action='store_false',
+    help='Do not try to avoid load balancer by reconnecting.'
+)
+
+parser.add_argument(
+    '--target_not_reconnect',
+    dest='target_reconnect',
+    default=True,
+    action='store_false',
+    help='Do not try to avoid load balancer by reconnecting.'
+)
+
+parser.add_argument(
+    '--target_host',
+    dest='target_host',
+    default=None,
+    help='If the target name of the CONNECT statement needs to be given.'
+)
+
+
+parser.add_argument(
     'source',
     type=str,
     help='ODBC data source name',
