@@ -1,7 +1,7 @@
 import pyodbc
 
 
-def get_connection(dsn, **kwargs):
+def get_connection(dsn, reconnect=True, **kwargs):
     """
     Get :py:mod:`!pyodbc` connection for the given ``dsn``.
 
@@ -25,6 +25,10 @@ def get_connection(dsn, **kwargs):
     :param dsn:
         A ``str`` representing the data source name.
 
+    :param reconnect:
+        A ``boolean`` asking to reconnect to skip load balancer.
+
+
     :param kwargs:
         Keyword arguments accepted by the :py:mod:`!pyodbc` module.
         See: http://code.google.com/p/pyodbc/wiki/Module#connect
@@ -33,11 +37,12 @@ def get_connection(dsn, **kwargs):
         Return an instance of :class:`!pyodbc.Connection`.
 
     """
+    print 'connection to dsn = ' + dsn + ' with reco = ' + str(reconnect)
     connection = pyodbc.connect('DSN={0}'.format(dsn), **kwargs)
 
-    if not 'servername' in kwargs:
+    if reconnect:
         return get_connection(
-            dsn, servername=_get_random_node_address(connection), **kwargs)
+            dsn, reconnect=False, servername=_get_random_node_address(connection), **kwargs)
 
     return connection
 

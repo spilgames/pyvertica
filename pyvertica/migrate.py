@@ -82,14 +82,16 @@ class VerticaMigrator(object):
         Setup db connections
         """
 
-        self._source_con = get_connection(self._source_dsn)
+        self._source_con = get_connection(self._source_dsn,
+            reconnect=self._args['source_reconnect'])
         self._source = self._source_con.cursor()
         self._source_ip = self._source.execute(
             "SELECT n.node_address FROM v_monitor.current_session cs "
             "JOIN v_catalog.nodes n ON n.node_name=cs.node_name"
             ).fetchone()[0]
 
-        self._target_con = get_connection(self._target_dsn)
+        self._target_con = get_connection(self._target_dsn,
+            reconnect=self._args['target_reconnect'])
         self._target = self._target_con.cursor()
         self._target_ip = self._target.execute(
             "SELECT n.node_address FROM v_monitor.current_session cs "
@@ -347,12 +349,15 @@ class VerticaMigrator(object):
         details = connection_details(self._target)
 
         details['pwd'] = self._args.get('target_pwd', '')
+        if self._args.get('target_host', None) is not None:
+            details['host'] = self._args['target_host']
 
         connect = "CONNECT TO VERTICA {db} USER {user} PASSWORD '{pwd}' ON '{host}',5433".format(
                 db=details['db'],
                 user=details['user'],
                 host=details['host'],
                 pwd=details['pwd'])
+        print connect
         try:
             self._source.execute(connect)
             return 'direct'
@@ -475,7 +480,7 @@ class VerticaMigrator(object):
             if len(ddls) == 0 and len(errors) > 0:
                 if len(errors) < last_error:
                     last_error = len(errors)
-                    logging.warning('{nb} DDL migration errors, retying them.'.format(
+                    logging.warning('{nb} DDL migration errors, retrying them.'.format(
                         nb=last_error))
                     ddls.extend(errors)
                     errors = []
@@ -521,7 +526,7 @@ class VerticaMigrator(object):
                 if self._commit:
                     self._source.execute(sql)
                     nbrows = self._source.rowcount
-                logger.info('%s rows exported.' % nbrows)
+                logger.info('{nb} rows exported.'.format(nb=nbrows))
             elif con_type == 'odbc':
                 sql = 'SELECT * FROM {t} LIMIT {l}'.format(t=tname, l=self._args.get('limit', 'ALL'))
 
@@ -533,6 +538,7 @@ class VerticaMigrator(object):
                         dsn=self._target_dsn,
                         table_name=table[0] + '.' + table[1],
                         truncate_table=self._args.get('truncate', False),
+                        reconnect=self._args['target_reconnect'],
                     )
                 if self._commit:
                     while True:
@@ -549,9 +555,7 @@ class VerticaMigrator(object):
             else:
                 raise VerticaMigratorError("Connection type from source to target not expected ('{0}').".format(con_type))
 
-        wouldhavebeen = 'would have been (with --commit)'
-        if self._commit:
-            wouldhavebeen = ''
+        wouldhavebeen = 'would have been (with --commit)' if self._commit else ''
         logger.warning('All data {0} exported.'.format(wouldhavebeen))
 
         if con_type == 'direct':
