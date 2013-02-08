@@ -3,6 +3,7 @@ import re
 import subprocess
 import sys
 from subprocess import CalledProcessError
+import time
 
 import pyodbc
 
@@ -357,7 +358,6 @@ class VerticaMigrator(object):
                 user=details['user'],
                 host=details['host'],
                 pwd=details['pwd'])
-        print connect
         try:
             self._source.execute(connect)
             return 'direct'
@@ -375,7 +375,8 @@ class VerticaMigrator(object):
             try:
                 self._target.execute(ddl)
             except pyodbc.ProgrammingError as e:
-                if (e.args[0] == '42601') and self._args['clever_ddls']:
+                # 42601: table, 42710: seq
+                if (e.args[0] in ['42601', '42710']) and self._args['clever_ddls']:
                     logger.info('DDL already exists, skip: {0}'.format(ddl.split('\n', 1)[0]))
                 else:
                     raise e
@@ -498,65 +499,96 @@ class VerticaMigrator(object):
             wouldhavebeen = ''
         logger.warning('{0} DDLs {1} migrated'.format(count, wouldhavebeen))
 
+    def _migrate_table(self, con_type, tname):
+        """
+        Migrate one table.
+        """
+        limit = self._args.get('limit', 'ALL')
+        sql = 'AT EPOCH LATEST SELECT * FROM {t} LIMIT {l}'.format(t=tname, l=limit)
+        nbrows = 0
+
+        if con_type == 'direct':
+            target_details = connection_details(self._target)
+            sql = 'EXPORT TO VERTICA {db}.{t} AS {s}'.format(
+                db=target_details['db'], t=tname, s=sql)
+            print sql
+
+            if self._commit:
+                self._source.execute(sql)
+                nbrows = self._source.rowcount
+        elif con_type == 'odbc':
+            self._source.execute(sql)
+            batch = None
+
+            # cannot start batch if tartget DDL does not exists, which could be the case in dryrun
+            if self._commit:
+                batch = VerticaBatch(
+                    dsn=self._target_dsn,
+                    table_name=tname,
+                    truncate_table=self._args.get('truncate', False),
+                    reconnect=self._args['target_reconnect'],
+                )
+                while True:
+                    row = self._source.fetchone()
+                    if row is None:
+                        break
+                    batch.insert_list(row)
+                    nbrows += 1
+                batch.commit()
+            else:
+                # let's try one fetch, to make sure sql is right
+                # but we cannot do anything with it
+                row = self._source.fetchone()
+        else:
+            raise VerticaMigratorError("Connection type from source to target not expected ('{0}').".format(con_type))
+
+        logger.info('{nb} rows exported'.format(nb=nbrows))
+
     def migrate_data(self, objects):
         """
         """
         logger.warning('Starting migrating data.')
 
         con_type = self._connection_type()
-
         logger.warning('Connection type: {t}'.format(t=con_type))
 
         tables = self._get_table_list(self._source, objects)
+        done_tbl = 0
+        errors = []
+        try:
+            while len(tables) > 0:
+                table = tables.pop(0)
+                tname = '{s}.{t}'.format(s=table[0], t=table[1])
+                done_tbl += 1
+                logging.info('Exporting data of {t}'.format(t=tname))
 
-        for table in tables:
-            tname = '{s}.{t}'.format(s=table[0], t=table[1])
-            logging.info('Exporting data of {0}'.format(tname))
-            if con_type == 'direct':
-                target_details = connection_details(self._target)
-                limit = self._args.get('limit', 'ALL')
-                sql = 'EXPORT TO VERTICA {db}.{t} '.format(
-                    db=target_details['db'], t=tname)
-                if limit == 'ALL':
-                    sql += ' FROM {t} '.format(t=tname)
-                else:
-                    sql = ' AS SELECT * FROM {t} LIMIT {l}'.format(
-                        t=tname, l=limit)
-                nbrows = 0
-                if self._commit:
-                    self._source.execute(sql)
-                    nbrows = self._source.rowcount
-                logger.info('{nb} rows exported.'.format(nb=nbrows))
-            elif con_type == 'odbc':
-                sql = 'SELECT * FROM {t} LIMIT {l}'.format(t=tname, l=self._args.get('limit', 'ALL'))
+                try:
+                    nbrows = self._migrate_table(con_type, tname)
+                except pyodbc.ProgrammingError as e:
+                    errors.append(tname)
+                    logger.error('Something went wrong during data copy for table {t}.'.format(t=tname))
+                    logger.error("{c}: {t}".format(c=e.args[0], t=e.args[1]))
+                    # wait a few minutes in case the cluster comes back to life
+                    time.sleep(120)
 
-                self._source.execute(sql)
-                batch = None
-                # cannot start batch if tartget DDL does not exists, which could be the case in dryrun
-                if self._commit:
-                    batch = VerticaBatch(
-                        dsn=self._target_dsn,
-                        table_name=table[0] + '.' + table[1],
-                        truncate_table=self._args.get('truncate', False),
-                        reconnect=self._args['target_reconnect'],
-                    )
-                if self._commit:
-                    while True:
-                        row = self._source.fetchone()
-                        if row is None:
-                            break
-                        batch.insert_list(row)
-                    batch.commit()
-                else:
-                    # let's try one fetch, to make sure sql is right
-                    # but we cannot do anything with it
-                    row = self._source.fetchone()
+                logger.info('{d} tables done, {td} todo'.format(d=done_tbl, td=len(tables)))
 
-            else:
-                raise VerticaMigratorError("Connection type from source to target not expected ('{0}').".format(con_type))
+        except Exception as e:
+            logger.error('Something went very wrong during data copy for table {t}.'.format(t=tname))
+            errors.append(tname)
+            for t in tables:
+                errors.append('{s}.{t} '.format(s=t[0], t=t[1]))
+            logger.error('Missing tables:')
+            logger.error(' '.join(errors))
+            # re-raise last exception
+            raise
 
-        wouldhavebeen = 'would have been (with --commit)' if self._commit else ''
+        wouldhavebeen = '' if self._commit else 'would have been (with --commit)'
         logger.warning('All data {0} exported.'.format(wouldhavebeen))
+
+        if len(errors) > 0:
+            logger.error('Missing tables:')
+            logger.error(' '.join(errors))
 
         if con_type == 'direct':
             self._source.execute('DISCONNECT {db}'.format(db=target_details['db']))
