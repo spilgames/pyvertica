@@ -511,7 +511,6 @@ class VerticaMigrator(object):
             target_details = connection_details(self._target)
             sql = 'EXPORT TO VERTICA {db}.{t} AS {s}'.format(
                 db=target_details['db'], t=tname, s=sql)
-            print sql
 
             if self._commit:
                 self._source.execute(sql)
