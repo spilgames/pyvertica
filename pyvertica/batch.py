@@ -3,6 +3,7 @@ import logging
 import os
 import tempfile
 import threading
+from Queue import Queue
 from functools import wraps
 
 from pyvertica.connection import get_connection
@@ -45,6 +46,12 @@ class QueryThread(threading.Thread):
     :param semaphore_obj:
         An instance of :py:class:`!threading.Semaphore`.
 
+    :param fifo_path:
+        A ``str`` representing the path of the fifo file.
+
+    :param exc_queue:
+        An instance of class:`Queue.Queue` instance to put exceptions in.
+
     """
 
     daemon = True
@@ -53,11 +60,14 @@ class QueryThread(threading.Thread):
     if only those are left.
     """
 
-    def __init__(self, cursor, sql_query_str, semaphore_obj):
+    def __init__(
+            self, cursor, sql_query_str, semaphore_obj, fifo_path, exc_queue):
         super(QueryThread, self).__init__()
         self.cursor = cursor
         self.sql_query_str = sql_query_str
         self.semaphore_obj = semaphore_obj
+        self.exc_queue = exc_queue
+        self.fifo_path = fifo_path
 
     def run(self):
         """
@@ -68,7 +78,19 @@ class QueryThread(threading.Thread):
         """
         logger.debug('Thread started with SQL statement: {0}'.format(
             self.sql_query_str))
-        self.cursor.execute(self.sql_query_str)
+        try:
+            self.cursor.execute(self.sql_query_str)
+        except Exception as e:
+            logger.exception('Something unexpected happened')
+
+            # the exception will be re-raised in the main thread
+            self.exc_queue.put(e)
+
+            # we need to consume the fifo, to make sure it isn't blocking the
+            # write (and thus hanging forever).
+            for line in codecs.open(self.fifo_path, 'r', 'utf-8'):
+                pass
+
         logger.debug('Thread done')
         self.semaphore_obj.release()
 
@@ -133,9 +155,15 @@ class VerticaBatch(object):
         A ``bool`` indicating if the table needs truncating before first
         insert. Default: ``False``. *Optional*.
 
+<<<<<<< HEAD
     :param reconnect:
         A ``bool`` passed to the connection object to decide if pyvertica
         should directly reconnect to a random node to bypass a load balancer.
+=======
+    :param analyze_constraints:
+        A ``bool`` indicating if a ``ANALYZE_CONSTRAINTS`` startement should
+        be executed when getting errors. Default: ``True``. *Optional*.
+>>>>>>> spilgames/master
 
     :param column_list:
         A ``list`` containing the columns that will be written. *Optional*.
@@ -165,6 +193,7 @@ class VerticaBatch(object):
                 table_name,
                 truncate_table=False,
                 reconnect=True,
+                analyze_constraints=True,
                 column_list=[],
                 copy_options={},
             ):
@@ -175,6 +204,7 @@ class VerticaBatch(object):
         self._dsn = dsn
         self._table_name = table_name
         self._column_list = column_list
+        self._analyze_constraints = analyze_constraints
         self.copy_options_dict.update(copy_options)
 
         self._total_count = 0
@@ -207,6 +237,7 @@ class VerticaBatch(object):
         """
         self._in_batch = True
         self._batch_count = 0
+        self._query_exc_queue = Queue()
 
         # create FIFO
         self._fifo_path = os.path.join(tempfile.mkdtemp(), 'fifo')
@@ -221,6 +252,8 @@ class VerticaBatch(object):
             self._cursor,
             self._get_sql_lcopy_str(),
             self._query_thread_semaphore_obj,
+            self._fifo_path,
+            self._query_exc_queue,
         )
         self._query_thread.start()
 
@@ -257,6 +290,10 @@ class VerticaBatch(object):
         os.rmdir(os.path.dirname(self._fifo_path))
 
         logger.debug('Batch ended')
+
+        if not self._query_exc_queue.empty():
+            raise self._query_exc_queue.get()
+
         return ended_clean
 
     def get_batch_count(self):
@@ -440,18 +477,20 @@ class VerticaBatch(object):
         if not self.get_batch_count():
             return(False, error_file_obj)
 
-        try:
-            analyze_constraints = self._cursor.execute(
-                "SELECT ANALYZE_CONSTRAINTS('{0}')".format(self._table_name))
-        except Exception as e:
-            if not 'no constraints defined' in str(e).lower():
-                raise e
-            analyze_constraints = None
+        if self._analyze_constraints:
+            try:
+                analyze_constraints = self._cursor.execute(
+                    "SELECT ANALYZE_CONSTRAINTS('{0}')".format(
+                        self._table_name))
+            except Exception as e:
+                if not 'no constraints defined' in str(e).lower():
+                    raise e
+                analyze_constraints = None
 
-        if analyze_constraints and analyze_constraints.rowcount > 0:
-            error_file_obj.write(
-                'At least one constraint not met: {0}\n'.format(
-                    ', '.join(analyze_constraints.fetchone())))
+            if analyze_constraints and analyze_constraints.rowcount > 0:
+                error_file_obj.write(
+                    'At least one constraint not met: {0}\n'.format(
+                        ', '.join(analyze_constraints.fetchone())))
 
         self._rejected_file_obj.seek(0)
         file_size = os.path.getsize(self._rejected_file_obj.name)

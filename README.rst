@@ -41,11 +41,28 @@ Links
 Changes
 -------
 
+
 v1.3.0
 ~~~~~~
 
 * **FEATURE**: Add a migration module and script, to move data between clusters.
 * **CHANGE**: Make the reconnect optional in batch
+
+
+v1.2.4
+~~~~~~
+
+* **CHANGE**: Make the execution of ``ANALYZE_CONSTRAINTS`` optional (executed
+  when getting the errors).
+
+
+v1.2.3
+~~~~~~
+
+* **FIX**: Handle exceptions raised inside the ``QueryThread`` so that the
+  semaphore always gets released.
+
+>>>>>>> spilgames/master
 
 v1.2.2
 ~~~~~~
