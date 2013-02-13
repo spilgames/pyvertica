@@ -37,7 +37,6 @@ def get_connection(dsn, reconnect=True, **kwargs):
         Return an instance of :class:`!pyodbc.Connection`.
 
     """
-    print 'connection to dsn = ' + dsn + ' with reco = ' + str(reconnect)
     connection = pyodbc.connect('DSN={0}'.format(dsn), **kwargs)
 
     if reconnect:
