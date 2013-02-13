@@ -32,25 +32,6 @@ class VerticaMigratorTestCase(unittest.TestCase):
         migrator = VerticaMigrator('SourceDSN', 'TargetDSN', False, **kwargs)
         return migrator
 
-    # ### Test connections to source and target
-
-    # @patch('pyvertica.migrate.VerticaMigrator._sanity_checks', Mock())
-    # @patch('pyvertica.migrate.get_connection')
-    # def test__set_connections(self, get_cnx):
-    #     """
-    #     Test :py:meth:`.VerticaMigrator._set_connections`.
-    #     """
-    #     cnx = get_cnx.return_value
-    #     print get_cnx
-    #     cursor = cnx.cursor.return_value
-    #     cursor.execute.return_value.fetchone.return_value = ['something']
-
-    #     VerticaMigrator('SourceDSN', 'TargetDSN', False)
-    #     self.assertEqual([
-    #         call('SourceDSN'),
-    #         call('TargetDSN'),
-    #     ], get_cnx.call_args_list)
-
     ### different sanity options.
     @patch('pyvertica.migrate.VerticaMigrator._source_ip', '1.2.3.4', create=True)
     @patch('pyvertica.migrate.VerticaMigrator._target_ip', '5.6.7.8', create=True)
@@ -517,34 +498,3 @@ class VerticaMigratorTestCase(unittest.TestCase):
         migrator._migrate_table = Mock()
         migrator._migrate_table.side_effect = Exception(42, 'm')
         self.assertRaises(Exception, migrator.migrate_data, '')
-
-
-
-    # @patch('pyvertica.migrate.VerticaMigrator._source', create=True)
-    # @patch('pyvertica.migrate.VerticaMigrator._target', create=True)
-    # def test_migrate_data_direct(self, target, source):
-    #     migrator = self.get_migrator()
-    #     migrator._commit = True
-    #     migrator._connection_type = Mock(return_value='direct')
-    #     migrator._get_table_list = Mock(return_value=['s.t'])
-    #     migrator.migrate_data('')
-    #     assert(migrator._source.execute.call_args_list[0][0][0].startswith('EXPORT'))
-
-    # @patch('pyvertica.migrate.VerticaMigrator._source', create=True)
-    # @patch('pyvertica.migrate.VerticaMigrator._target', create=True)
-    # @patch('pyvertica.migrate.VerticaBatch', Mock())
-    # def test_migrate_data_odbc(self, target, source):
-    #     migrator = self.get_migrator()
-    #     migrator._commit = True
-    #     source.fetchone.side_effect = ['1', None]
-    #     migrator._connection_type = Mock(return_value='odbc')
-    #     migrator._get_table_list = Mock(return_value=['s.t'])
-    #     migrator.migrate_data('')
-    #     assert(migrator._source.execute.call_args_list[0][0][0].startswith('SELECT'))
-
-    # @patch('pyvertica.migrate.VerticaMigrator._source', create=True)
-    # def test_migrate_data_other(self, source):
-    #     migrator = self.get_migrator()
-    #     migrator._get_table_list = Mock(return_value=['s.t'])
-    #     migrator._connection_type = Mock(return_value='nope')
-    #     self.assertRaises(VerticaMigratorError, migrator.migrate_data, '')
