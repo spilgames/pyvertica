@@ -10,6 +10,8 @@ import pyodbc
 from pyvertica.connection import get_connection, connection_details
 from pyvertica.batch import VerticaBatch
 
+import datetime
+
 logger = logging.getLogger(__name__)
 
 
@@ -83,21 +85,18 @@ class VerticaMigrator(object):
         Setup db connections
         """
 
+        ip_sql = 'SELECT node_address FROM v_catalog.nodes'
+        'ORDER BY node_name LIMIT 1'
+
         self._source_con = get_connection(self._source_dsn,
-            reconnect=self._args['source_reconnect'])
+            reconnect=self._args.get('source_reconnect', True)),
         self._source = self._source_con.cursor()
-        self._source_ip = self._source.execute(
-            "SELECT n.node_address FROM v_monitor.current_session cs "
-            "JOIN v_catalog.nodes n ON n.node_name=cs.node_name"
-            ).fetchone()[0]
+        self._source_ip = self._source.execute(ip_sql).fetchone()[0]
 
         self._target_con = get_connection(self._target_dsn,
-            reconnect=self._args['target_reconnect'])
+            reconnect=self._args.get('target_reconnect', True))
         self._target = self._target_con.cursor()
-        self._target_ip = self._target.execute(
-            "SELECT n.node_address FROM v_monitor.current_session cs "
-            "JOIN v_catalog.nodes n ON n.node_name=cs.node_name"
-            ).fetchone()[0]
+        self._target_ip = self._target.execute(ip_sql).fetchone()[0]
 
     def _sanity_checks(self):
         """
@@ -461,7 +460,7 @@ class VerticaMigrator(object):
                     name=new_seq['name'],
                     start=new_seq['start']
                     )
-                logger.debug(create)
+                logger.info(create)
 
                 count += 1
                 self._exec_ddl(create)
@@ -471,7 +470,7 @@ class VerticaMigrator(object):
                     name=new_seq['name'],
                     table=new_seq['table'],
                     col=new_seq['col'])
-                logger.debug(alter)
+                logger.info(alter)
 
                 count += 1
                 self._exec_ddl(alter)
@@ -499,7 +498,7 @@ class VerticaMigrator(object):
             wouldhavebeen = ''
         logger.warning('{0} DDLs {1} migrated'.format(count, wouldhavebeen))
 
-    def _migrate_table(self, con_type, tname):
+    def _migrate_table(self, con_type, tname, target_details):
         """
         Migrate one table.
         """
@@ -508,30 +507,31 @@ class VerticaMigrator(object):
         nbrows = 0
 
         if con_type == 'direct':
-            target_details = connection_details(self._target)
             sql = 'EXPORT TO VERTICA {db}.{t} AS {s}'.format(
                 db=target_details['db'], t=tname, s=sql)
 
             if self._commit:
+                if self._args.get('truncate', False):
+                    self._target.execute('TRUNCATE TABLE {t}'.format(t=tname))
                 self._source.execute(sql)
                 nbrows = self._source.rowcount
         elif con_type == 'odbc':
             self._source.execute(sql)
             batch = None
 
-            # cannot start batch if tartget DDL does not exists, which could be the case in dryrun
+            # cannot start batch if target DDL does not exists, which could be the case in dryrun
             if self._commit:
                 batch = VerticaBatch(
                     dsn=self._target_dsn,
                     table_name=tname,
                     truncate_table=self._args.get('truncate', False),
-                    reconnect=self._args['target_reconnect'],
+                    reconnect=self._args.get('target_reconnect', True),
                 )
                 while True:
                     row = self._source.fetchone()
                     if row is None:
                         break
-                    batch.insert_list(row)
+                    batch.insert_list([x.decode('utf-8') for x in row])
                     nbrows += 1
                 batch.commit()
             else:
@@ -551,9 +551,15 @@ class VerticaMigrator(object):
         con_type = self._connection_type()
         logger.warning('Connection type: {t}'.format(t=con_type))
 
+        # used if we are direct, cannot hurt otherwise, and save a lot of
+        # queries if done now instead of inside _migrate_table
+        target_details = connection_details(self._target)
+
         tables = self._get_table_list(self._source, objects)
         done_tbl = 0
         errors = []
+        nbrows = 0
+
         try:
             while len(tables) > 0:
                 table = tables.pop(0)
@@ -562,15 +568,17 @@ class VerticaMigrator(object):
                 logging.info('Exporting data of {t}'.format(t=tname))
 
                 try:
-                    nbrows = self._migrate_table(con_type, tname)
+                    nbrows = self._migrate_table(con_type, tname, target_details)
                 except pyodbc.ProgrammingError as e:
                     errors.append(tname)
-                    logger.error('Something went wrong during data copy for table {t}.'.format(t=tname))
+                    logger.error('Something went wrong during data copy for table {t}. Waiting 2 minutes to resume'.format(t=tname))
                     logger.error("{c}: {t}".format(c=e.args[0], t=e.args[1]))
                     # wait a few minutes in case the cluster comes back to life
                     time.sleep(120)
 
-                logger.info('{d} tables done, {td} todo'.format(d=done_tbl, td=len(tables)))
+                logger.info('{d} tables done ({r} exportes), {td} todo'.format(
+                    d=done_tbl, td=len(tables), r=nbrows))
+
 
         except Exception as e:
             logger.error('Something went very wrong during data copy for table {t}.'.format(t=tname))
