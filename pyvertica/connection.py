@@ -41,7 +41,8 @@ def get_connection(dsn, reconnect=True, **kwargs):
 
     if reconnect:
         return get_connection(
-            dsn, reconnect=False, servername=_get_random_node_address(connection), **kwargs)
+            dsn, reconnect=False,
+            servername=_get_random_node_address(connection), **kwargs)
 
     return connection
 

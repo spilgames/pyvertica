@@ -2,7 +2,8 @@ import unittest2 as unittest
 
 from mock import Mock, call, patch
 
-from pyvertica.connection import get_connection, connection_details, _get_random_node_address
+from pyvertica.connection import get_connection, connection_details
+from pyvertica.connection import _get_random_node_address
 
 
 class ModuleTestCase(unittest.TestCase):
@@ -51,17 +52,3 @@ class ModuleTestCase(unittest.TestCase):
             'ORDER BY RANDOM() LIMIT 1',
             'UP'
         )
-
-    @patch('pyvertica.connection.get_connection')
-    def test_connection_details(self, con):
-        pass
-        # Howto patch an object? :(
-        #con.execute.return_value.fetchone.side_effect = [['h'], ['u'], ['d']]
-        # con.cursor().execute.return_value.fetchone.side_effect = [{'host':'h', 'user':'u', 'db':'d'}]
-        # details = connection_details(con)
-        # self.assertEqual(details, {
-        #     'host': 'h',
-        #     'user': 'u',
-        #     'db': 'd'
-        #     })
-
