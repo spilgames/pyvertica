@@ -155,15 +155,13 @@ class VerticaBatch(object):
         A ``bool`` indicating if the table needs truncating before first
         insert. Default: ``False``. *Optional*.
 
-<<<<<<< HEAD
     :param reconnect:
         A ``bool`` passed to the connection object to decide if pyvertica
         should directly reconnect to a random node to bypass a load balancer.
-=======
+
     :param analyze_constraints:
         A ``bool`` indicating if a ``ANALYZE_CONSTRAINTS`` startement should
         be executed when getting errors. Default: ``True``. *Optional*.
->>>>>>> spilgames/master
 
     :param column_list:
         A ``list`` containing the columns that will be written. *Optional*.

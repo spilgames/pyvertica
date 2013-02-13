@@ -62,8 +62,6 @@ v1.2.3
 * **FIX**: Handle exceptions raised inside the ``QueryThread`` so that the
   semaphore always gets released.
 
->>>>>>> spilgames/master
-
 v1.2.2
 ~~~~~~
 
