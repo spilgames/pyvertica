@@ -41,6 +41,12 @@ Links
 Changes
 -------
 
+v1.3.0
+~~~~~~
+
+* **FEATURE**: Add a migration module and script, to move data between clusters.
+* **CHANGE**: Make the reconnect optional in batch
+
 v1.2.2
 ~~~~~~
 
