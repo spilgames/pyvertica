@@ -85,11 +85,11 @@ class VerticaMigrator(object):
         Setup db connections
         """
 
-        ip_sql = 'SELECT node_address FROM v_catalog.nodes'
-        'ORDER BY node_name LIMIT 1'
+        ip_sql = ('SELECT node_address FROM v_catalog.nodes '
+        'ORDER BY node_name LIMIT 1')
 
         self._source_con = get_connection(self._source_dsn,
-            reconnect=self._args.get('source_reconnect', True)),
+            reconnect=self._args.get('source_reconnect', True))
         self._source = self._source_con.cursor()
         self._source_ip = self._source.execute(ip_sql).fetchone()[0]
 
@@ -321,8 +321,8 @@ class VerticaMigrator(object):
             A ``list`` of (schema, table) (``str``, ``str``).
         """
         # basic sql
-        tables_sql = "SELECT table_schema as s, table_name as t "
-        "FROM tables WHERE is_system_table=false AND is_temp_table=false"
+        tables_sql = ("SELECT table_schema as s, table_name as t "
+        "FROM tables WHERE is_system_table=false AND is_temp_table=false")
         # extra where clause to find only specific tables
         where = []
         if len(objects) == 0:
@@ -360,8 +360,8 @@ class VerticaMigrator(object):
         if self._args.get('target_host', None) is not None:
             details['host'] = self._args['target_host']
 
-        connect = "CONNECT TO VERTICA {db} USER {user} "
-        "PASSWORD '{pwd}' ON '{host}',5433".format(
+        connect = ("CONNECT TO VERTICA {db} USER {user} "
+        "PASSWORD '{pwd}' ON '{host}',5433").format(
                 db=details['db'],
                 user=details['user'],
                 host=details['host'],
@@ -477,8 +477,8 @@ class VerticaMigrator(object):
                 count += 1
                 self._exec_ddl(create)
 
-                alter = "ALTER TABLE {schema}.{table} ALTER COLUMN {col} "
-                "SET DEFAULT NEXTVAL('{schema}.{name}')".format(
+                alter = ("ALTER TABLE {schema}.{table} ALTER COLUMN {col} "
+                "SET DEFAULT NEXTVAL('{schema}.{name}')").format(
                     schema=new_seq['schema'],
                     name=new_seq['name'],
                     table=new_seq['table'],
@@ -555,8 +555,8 @@ class VerticaMigrator(object):
                 # but we cannot do anything with it
                 row = self._source.fetchone()
         else:
-            raise VerticaMigratorError("Connection type from source to target"
-                " not 'odbc' or 'direct' but: '{0}'.".format(con_type))
+            raise VerticaMigratorError(("Connection type from source to target"
+                " not 'odbc' or 'direct' but: '{0}'.").format(con_type))
 
         logger.info('{nb} rows exported'.format(nb=nbrows))
 
