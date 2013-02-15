@@ -124,7 +124,8 @@ class VerticaMigrator(object):
             ).fetchone()[0]
 
         if is_target_empty > 0:
-            if 'even_not_empty' in self._kwargs and self._kwargs['even_not_empty']:
+            if ('even_not_empty' in self._kwargs
+                and self._kwargs['even_not_empty']):
                 logger.info('Target DB not empty but copy anyway.')
             else:
                 raise VerticaMigratorError("Target vertica is not empty.")
