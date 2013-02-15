@@ -17,12 +17,18 @@ Provided modules
 ``pyvertica.importer``
     Base-class for writing Vertica batch importers.
 
+``pyvertica.migrate``
+    Module managing export from one Vertica cluster to another.
+
 
 Provided scripts
 ~~~~~~~~~~~~~~~~
 
 ``vertica_batch_import``
-    Command-line interface for the ``pyvertica.vcopy`` module.
+    Command-line interface for the ``pyvertica.batch`` module.
+
+``vertica_migrate``
+    Command-line interface for the ``pyvertica.migrate`` module.
 
 
 Installation
@@ -45,8 +51,9 @@ Changes
 v1.3.0
 ~~~~~~
 
-* **FEATURE**: Add a migration module and script, to move data between clusters.
-* **CHANGE**: Make the reconnect optional in batch
+* **FEATURE**: Add a migration module ``pyvertica.migrate``and script
+  ``vertica_migrate``, to move data between clusters.
+* **CHANGE**: Make the reconnect optional in ``VerticaBatch.get_connection``
 
 
 v1.2.4

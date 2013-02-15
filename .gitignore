@@ -6,3 +6,4 @@ fabfile.*
 
 docs/_build
 dist
+htmlcov

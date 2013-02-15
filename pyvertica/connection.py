@@ -75,7 +75,17 @@ def connection_details(con):
         A :py:func:`!pyodbc.connect` object # THIS IS WRONG
 
     return:
-        A ``dict`` of information, containing current user, host and database.
+        A ``dict`` of information:
+
+        host
+            Connected node IP address
+
+        user
+            Connected username
+
+        db
+            Connected database name
+
     """
     details = con.execute('''
         SELECT

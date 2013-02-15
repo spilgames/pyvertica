@@ -2,16 +2,13 @@ import unittest2 as unittest
 
 import pyodbc
 
+# Sidable logging during unittests
+import logging
+logging.disable(logging.CRITICAL)
+
 from subprocess import CalledProcessError
 from mock import Mock, call, patch
 from pyvertica.migrate import VerticaMigrator, VerticaMigratorError
-
-
-# class VerticaMigratorErrorTest(unittest.TestCase):
-#     def test_exception(self):
-#         e = VerticaMigratorError('apenzeller')
-#         self.assertEqual(e.value, 'apenzeller')
-#         self.assertEqual(e.__str__(), "'apenzeller'")
 
 
 class VerticaMigratorConnection(unittest.TestCase):
