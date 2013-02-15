@@ -76,7 +76,7 @@ class QueryThread(threading.Thread):
         This method will be called when starting this thread.
 
         """
-        logger.info('Thread started with SQL statement: {0}'.format(
+        logger.debug('Thread started with SQL statement: {0}'.format(
             self.sql_query_str))
         try:
             self.cursor.execute(self.sql_query_str)
@@ -91,7 +91,7 @@ class QueryThread(threading.Thread):
             for line in codecs.open(self.fifo_path, 'r', 'utf-8'):
                 pass
 
-        logger.info('Thread done')
+        logger.debug('Thread done')
         self.semaphore_obj.release()
 
 
@@ -155,6 +155,10 @@ class VerticaBatch(object):
         A ``bool`` indicating if the table needs truncating before first
         insert. Default: ``False``. *Optional*.
 
+    :param reconnect:
+        A ``bool`` passed to the connection object to decide if pyvertica
+        should directly reconnect to a random node to bypass a load balancer.
+
     :param analyze_constraints:
         A ``bool`` indicating if a ``ANALYZE_CONSTRAINTS`` startement should
         be executed when getting errors. Default: ``True``. *Optional*.
@@ -186,6 +190,7 @@ class VerticaBatch(object):
                 dsn,
                 table_name,
                 truncate_table=False,
+                reconnect=True,
                 analyze_constraints=True,
                 column_list=[],
                 copy_options={},
@@ -206,7 +211,7 @@ class VerticaBatch(object):
         self._in_batch = False
 
         # setup db connection
-        self._connection = get_connection(self._dsn)
+        self._connection = get_connection(self._dsn, reconnect=reconnect)
         self._cursor = self._connection.cursor()
 
         # truncate table, if needed
@@ -253,7 +258,7 @@ class VerticaBatch(object):
         logger.debug('Opening FIFO')
         self._fifo_obj = codecs.open(self._fifo_path, 'w', 'utf-8')
 
-        logger.info('Batch started')
+        logger.debug('Batch started')
 
     @require_started_batch
     def _end_batch(self):
@@ -282,7 +287,7 @@ class VerticaBatch(object):
         os.remove(self._fifo_path)
         os.rmdir(os.path.dirname(self._fifo_path))
 
-        logger.info('Batch ended')
+        logger.debug('Batch ended')
 
         if not self._query_exc_queue.empty():
             raise self._query_exc_queue.get()

@@ -2,7 +2,8 @@ import unittest2 as unittest
 
 from mock import Mock, call, patch
 
-from pyvertica.connection import get_connection, _get_random_node_address
+from pyvertica.connection import get_connection, connection_details
+from pyvertica.connection import _get_random_node_address
 
 
 class ModuleTestCase(unittest.TestCase):

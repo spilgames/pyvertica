@@ -19,6 +19,7 @@ setup(
     ],
     scripts=[
         'scripts/vertica_batch_import',
+        'scripts/vertica_migrate'
     ],
     install_requires=[
         'argparse',

@@ -152,7 +152,7 @@ class VerticaBatchTestCase(unittest.TestCase):
         self.assertFalse(batch._in_batch)
 
         # db connection
-        get_connection.assert_called_once_with('TestDSN')
+        get_connection.assert_called_once_with('TestDSN', reconnect=True)
         self.assertEqual(get_connection.return_value, batch._connection)
         batch._connection.cursor.assert_called_once_with()
         self.assertEqual(batch._connection.cursor.return_value, batch._cursor)

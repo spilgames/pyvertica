@@ -1,7 +1,7 @@
 import pyodbc
 
 
-def get_connection(dsn, **kwargs):
+def get_connection(dsn, reconnect=True, **kwargs):
     """
     Get :py:mod:`!pyodbc` connection for the given ``dsn``.
 
@@ -25,6 +25,10 @@ def get_connection(dsn, **kwargs):
     :param dsn:
         A ``str`` representing the data source name.
 
+    :param reconnect:
+        A ``boolean`` asking to reconnect to skip load balancer.
+
+
     :param kwargs:
         Keyword arguments accepted by the :py:mod:`!pyodbc` module.
         See: http://code.google.com/p/pyodbc/wiki/Module#connect
@@ -35,9 +39,10 @@ def get_connection(dsn, **kwargs):
     """
     connection = pyodbc.connect('DSN={0}'.format(dsn), **kwargs)
 
-    if not 'servername' in kwargs:
+    if reconnect:
         return get_connection(
-            dsn, servername=_get_random_node_address(connection), **kwargs)
+            dsn, reconnect=False,
+            servername=_get_random_node_address(connection), **kwargs)
 
     return connection
 
@@ -60,3 +65,38 @@ def _get_random_node_address(connection):
         'UP'
     )
     return cursor.fetchone().node_address
+
+
+def connection_details(con):
+    """
+    Given one connection objects returns information about it.
+
+    :param con:
+        A :py:func:`!pyodbc.connect` object # THIS IS WRONG
+
+    return:
+        A ``dict`` of information:
+
+        host
+            Connected node IP address
+
+        user
+            Connected username
+
+        db
+            Connected database name
+
+    """
+    details = con.execute('''
+        SELECT
+            n.node_address as host
+          , CURRENT_USER() as user
+          , CURRENT_DATABASE() as db
+        FROM v_monitor.current_session cs
+        JOIN v_catalog.nodes n ON n.node_name=cs.node_name
+        ''').fetchone()
+    return {
+        'host': details.host,
+        'user': details.user,
+        'db': details.db
+    }
