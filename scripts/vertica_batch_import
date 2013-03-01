@@ -138,7 +138,7 @@ def handle_import(args_obj):
 
     try:
         batch = VerticaBatch(
-            dsn=args_obj.dsn,
+            odbc_kwargs={'dsn': args_obj.dsn},
             table_name=args_obj.table_name,
             truncate_table=truncate_table,
             copy_options={

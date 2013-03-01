@@ -33,7 +33,7 @@ class BaseImporterTestCase(unittest.TestCase):
     def get_importer(self, **kwargs):
         arguments = {
             'reader_obj': Mock(),
-            'dsn': 'TestDSN',
+            'odbc_kwargs': {'dsn': 'TestDSN'},
             'schema_name': 'schema',
             'batch_source_path': 'test/path',
         }
@@ -49,7 +49,7 @@ class BaseImporterTestCase(unittest.TestCase):
         importer = self.get_importer(reader_obj=reader_obj, foo='bar')
 
         self.assertEqual(reader_obj, importer._reader_obj)
-        self.assertEqual('TestDSN', importer._dsn)
+        self.assertEqual({'dsn': 'TestDSN'}, importer._odbc_kwargs)
         self.assertEqual('schema', importer._schema_name)
         self.assertEqual({
             'foo': 'bar',
@@ -69,7 +69,7 @@ class BaseImporterTestCase(unittest.TestCase):
 
         self.assertEqual(VerticaBatch.return_value, batch_obj)
         VerticaBatch.assert_called_once_with(
-            dsn='TestDSN',
+            odbc_kwargs={'dsn': 'TestDSN'},
             table_name='schema.test_table',
             column_list=get_db_column_list.return_value,
         )
@@ -182,7 +182,7 @@ class BaseImporterTestCase(unittest.TestCase):
 
         importer._get_vertica_batch.assert_called_once_with()
         importer.get_batch_source_path_exists.assert_called_once_with(
-            'TestDSN', 'test/path')
+            'test/path', odbc_kwargs={'dsn': 'TestDSN'})
         self.assertEqual(
             [call(1), call(2), call(3)],
             importer._get_row_value_list.call_args_list
@@ -245,10 +245,10 @@ class BaseImporterTestCase(unittest.TestCase):
 
         self.assertTrue(
             BaseImporter.get_batch_source_path_exists(
-                'TestDSN', 'test/path')
+                'test/path', odbc_kwargs={'dsn': 'TestDSN'})
         )
 
-        get_connection.assert_called_once_with('TestDSN')
+        get_connection.assert_called_once_with(dsn='TestDSN')
         connection.cursor.assert_called_once_with()
         cursor.execute.assert_called_once_with(
             'SELECT batch_source_path FROM meta.batch_history '
@@ -273,7 +273,7 @@ class BaseImporterTestCase(unittest.TestCase):
 
         self.assertFalse(
             BaseImporter.get_batch_source_path_exists(
-                'TestDSN', 'test/path')
+                'test/path', odbc_kwargs={'dsn': 'TestDSN'})
         )
 
     @patch('pyvertica.importer.BaseImporter.batch_source_name', 'test_bsn')
@@ -289,10 +289,11 @@ class BaseImporterTestCase(unittest.TestCase):
 
         self.assertEqual(
             'foo/bar',
-            BaseImporter.get_last_imported_batch_source_path('TestDSN')
+            BaseImporter.get_last_imported_batch_source_path(
+                odbc_kwargs={'dsn': 'TestDSN'})
         )
 
-        get_connection.assert_called_once_with('TestDSN')
+        get_connection.assert_called_once_with(dsn='TestDSN')
         connection.cursor.assert_called_once_with()
         cursor.execute.assert_called_once_with(
             'SELECT batch_source_path FROM meta.batch_history '
@@ -314,7 +315,8 @@ class BaseImporterTestCase(unittest.TestCase):
         cursor.fetchone.return_value = None
 
         self.assertEqual(
-            None, BaseImporter.get_last_imported_batch_source_path('TestDSN'))
+            None, BaseImporter.get_last_imported_batch_source_path(
+                odbc_kwargs={'dsn': 'TestDSN'}))
 
     def test_get_extra_batch_source_name_data(self):
         """

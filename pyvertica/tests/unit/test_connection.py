@@ -2,7 +2,7 @@ import unittest2 as unittest
 
 from mock import Mock, call, patch
 
-from pyvertica.connection import get_connection, connection_details
+from pyvertica.connection import get_connection
 from pyvertica.connection import _get_random_node_address
 
 
@@ -18,12 +18,12 @@ class ModuleTestCase(unittest.TestCase):
         """
         pyodbc.connect.side_effect = ['connection1', 'connection2']
 
-        connection = get_connection('TestDSN', foo='bar', bar='foo')
+        connection = get_connection(dsn='TestDSN', foo='bar', bar='foo')
 
         self.assertEqual([
-            call('DSN=TestDSN', foo='bar', bar='foo'),
+            call(dsn='TestDSN', foo='bar', bar='foo'),
             call(
-                'DSN=TestDSN',
+                dsn='TestDSN',
                 servername=get_random_node_address.return_value,
                 foo='bar',
                 bar='foo',

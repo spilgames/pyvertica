@@ -112,7 +112,7 @@ class VerticaBatchTestCase(unittest.TestCase):
     """
     def get_batch(self, **kwargs):
         arguments = {
-            'dsn': 'TestDSN',
+            'odbc_kwargs': {'dsn': 'TestDSN'},
             'table_name': 'schema.test_table',
             'truncate_table': False,
             'column_list': [
@@ -134,7 +134,7 @@ class VerticaBatchTestCase(unittest.TestCase):
         batch = self.get_batch()
 
         # variables
-        self.assertEqual('TestDSN', batch._dsn)
+        self.assertEqual({'dsn': 'TestDSN'}, batch._odbc_kwargs)
         self.assertEqual('schema.test_table', batch._table_name)
         self.assertEqual(
             ['column_1', 'column_2', 'column_3'], batch._column_list)
@@ -152,7 +152,7 @@ class VerticaBatchTestCase(unittest.TestCase):
         self.assertFalse(batch._in_batch)
 
         # db connection
-        get_connection.assert_called_once_with('TestDSN', reconnect=True)
+        get_connection.assert_called_once_with(dsn='TestDSN', reconnect=True)
         self.assertEqual(get_connection.return_value, batch._connection)
         batch._connection.cursor.assert_called_once_with()
         self.assertEqual(batch._connection.cursor.return_value, batch._cursor)

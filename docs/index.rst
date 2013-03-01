@@ -141,4 +141,4 @@ Exceptions
 
 .. autoexception:: pyvertica.importer.AlreadyImportedError
 
-.. autoexception:: pyvertica.importer.VerticaMigratorError
+.. autoexception:: pyvertica.migrate.VerticaMigratorError
