@@ -145,12 +145,18 @@ class VerticaBatch(object):
         insert.
 
 
-    :param dsn:
-        A ``str`` representing the data source name.
-
     :param table_name:
         A ``str`` representing the table name (including the schema) to write
         to. Example: ``'staging.my_table'``.
+
+    :param odbc_kwargs:
+        A ``dict`` containing the ODBC connection keyword arguments. E.g.::
+
+            {
+                'dsn': 'TestDSN',
+            }
+
+        .. seealso:: https://code.google.com/p/pyodbc/wiki/Module
 
     :param truncate_table:
         A ``bool`` indicating if the table needs truncating before first

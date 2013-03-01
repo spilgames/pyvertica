@@ -399,15 +399,17 @@ class BaseImporter(object):
         """
         Check if the batch source-path exists in the database.
 
-        :param dsn:
-            The ODBC data source-name (``str``).
-
         :param batch_source_path:
             The batch source-path (``str``).
 
-        :param kwargs:
-            Keyword arguments accepted by the :py:mod:`!pyodbc` module.
-            See: http://code.google.com/p/pyodbc/wiki/Module#connect
+        :param odbc_kwargs:
+            A ``dict`` containing the ODBC connection keyword arguments. E.g.::
+
+                {
+                    'dsn': 'TestDSN',
+                }
+
+            .. seealso:: https://code.google.com/p/pyodbc/wiki/Module
 
         :return:
             ``True`` if it already exists, else ``False``.
@@ -436,9 +438,14 @@ class BaseImporter(object):
         """
         Return the last imported batch source-path.
 
-        :param kwargs:
-            Keyword arguments accepted by the :py:mod:`!pyodbc` module.
-            See: http://code.google.com/p/pyodbc/wiki/Module#connect
+        :param odbc_kwargs:
+            A ``dict`` containing the ODBC connection keyword arguments. E.g.::
+
+                {
+                    'dsn': 'TestDSN',
+                }
+
+            .. seealso:: https://code.google.com/p/pyodbc/wiki/Module
 
         :return:
             A ``str`` representing the last imported batch source-path.
