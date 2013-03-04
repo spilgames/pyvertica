@@ -88,12 +88,12 @@ class VerticaMigrator(object):
         ip_sql = ('SELECT node_address FROM v_catalog.nodes '
         'ORDER BY node_name LIMIT 1')
 
-        self._source_con = get_connection(self._source_dsn,
+        self._source_con = get_connection(dsn=self._source_dsn,
             reconnect=self._kwargs.get('source_reconnect', True))
         self._source = self._source_con.cursor()
         self._source_ip = self._source.execute(ip_sql).fetchone()[0]
 
-        self._target_con = get_connection(self._target_dsn,
+        self._target_con = get_connection(dsn=self._target_dsn,
             reconnect=self._kwargs.get('target_reconnect', True))
         self._target = self._target_con.cursor()
         self._target_ip = self._target.execute(ip_sql).fetchone()[0]
@@ -528,7 +528,7 @@ class VerticaMigrator(object):
 
         :target_details:
             ``dict`` of conenction deatils, returned from
-            ``VerticaBatch.connection_details``
+            :func:`.connection_details`.
 
         """
         limit = self._kwargs.get('limit', 'ALL')
@@ -553,7 +553,7 @@ class VerticaMigrator(object):
             # which could be the case in dryrun
             if self._commit:
                 batch = VerticaBatch(
-                    dsn=self._target_dsn,
+                    odbc_kwargs={'dsn': self._target_dsn},
                     table_name=tname,
                     truncate_table=self._kwargs.get('truncate', False),
                     reconnect=self._kwargs.get('target_reconnect', True),

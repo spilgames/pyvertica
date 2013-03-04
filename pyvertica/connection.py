@@ -1,7 +1,7 @@
 import pyodbc
 
 
-def get_connection(dsn, reconnect=True, **kwargs):
+def get_connection(reconnect=True, **kwargs):
     """
     Get :py:mod:`!pyodbc` connection for the given ``dsn``.
 
@@ -19,11 +19,8 @@ def get_connection(dsn, reconnect=True, **kwargs):
     to that specific node and return this connection instance. This is done
     to avoid that all the data has to pass the load-balancer.
 
-    .. note:: At this point it is expected that you have a ``odbc.ini`` file
-        on your machine, defining the given ``dsn``.
-
-    :param dsn:
-        A ``str`` representing the data source name.
+    .. note:: Depending on the given keyword arguments, you need to have
+        a ``odbc.ini`` file on your system.
 
     :param reconnect:
         A ``boolean`` asking to reconnect to skip load balancer.
@@ -37,12 +34,14 @@ def get_connection(dsn, reconnect=True, **kwargs):
         Return an instance of :class:`!pyodbc.Connection`.
 
     """
-    connection = pyodbc.connect('DSN={0}'.format(dsn), **kwargs)
+    connection = pyodbc.connect(**kwargs)
 
     if reconnect:
         return get_connection(
-            dsn, reconnect=False,
-            servername=_get_random_node_address(connection), **kwargs)
+            reconnect=False,
+            servername=_get_random_node_address(connection),
+            **kwargs
+        )
 
     return connection
 

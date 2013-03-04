@@ -1,4 +1,5 @@
 import codecs
+import copy
 import logging
 import os
 import tempfile
@@ -144,12 +145,18 @@ class VerticaBatch(object):
         insert.
 
 
-    :param dsn:
-        A ``str`` representing the data source name.
-
     :param table_name:
         A ``str`` representing the table name (including the schema) to write
         to. Example: ``'staging.my_table'``.
+
+    :param odbc_kwargs:
+        A ``dict`` containing the ODBC connection keyword arguments. E.g.::
+
+            {
+                'dsn': 'TestDSN',
+            }
+
+        .. seealso:: https://code.google.com/p/pyodbc/wiki/Module
 
     :param truncate_table:
         A ``bool`` indicating if the table needs truncating before first
@@ -186,20 +193,24 @@ class VerticaBatch(object):
     """
 
     def __init__(
-                self,
-                dsn,
-                table_name,
-                truncate_table=False,
-                reconnect=True,
-                analyze_constraints=True,
-                column_list=[],
-                copy_options={},
-            ):
+            self,
+            table_name,
+            odbc_kwargs={},
+            truncate_table=False,
+            reconnect=True,
+            analyze_constraints=True,
+            column_list=[],
+            copy_options={}):
+        # make sure we are not logging any passwords :)
+        odbc_kwargs_copy = copy.deepcopy(odbc_kwargs)
+        if 'password' in odbc_kwargs_copy:
+            odbc_kwargs_copy['password'] = '*****'
         logger.debug(
-            'Initializing VerticaBatch with dsn={0}, table_name={1}, '
-            'column_list={2}'.format(dsn, table_name, column_list))
+            'Initializing VerticaBatch with odbc_kwargs={0}, table_name={1}, '
+            'column_list={2}'.format(
+                odbc_kwargs_copy, table_name, column_list))
 
-        self._dsn = dsn
+        self._odbc_kwargs = odbc_kwargs
         self._table_name = table_name
         self._column_list = column_list
         self._analyze_constraints = analyze_constraints
@@ -211,7 +222,8 @@ class VerticaBatch(object):
         self._in_batch = False
 
         # setup db connection
-        self._connection = get_connection(self._dsn, reconnect=reconnect)
+        self._connection = get_connection(
+            reconnect=reconnect, **self._odbc_kwargs)
         self._cursor = self._connection.cursor()
 
         # truncate table, if needed
@@ -348,12 +360,11 @@ class VerticaBatch(object):
 
         # other arguments which map one-to-one
         for key in [
-                    'DELIMITER',
-                    'ENCLOSED BY',
-                    'SKIP',
-                    'NULL',
-                    'RECORD TERMINATOR'
-                ]:
+                'DELIMITER',
+                'ENCLOSED BY',
+                'SKIP',
+                'NULL',
+                'RECORD TERMINATOR']:
             value = self.copy_options_dict[key]
 
             if isinstance(value, int):

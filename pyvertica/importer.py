@@ -90,8 +90,15 @@ class BaseImporter(object):
 
         .. note:: Passing a ``list`` of ``dict`` objects will work as well.
 
-    :param dsn:
-        ODBC data source name, used for connecting to the Vertica database.
+    :param odbc_kwargs:
+        A ``dict`` containing the ODBC connection keyword arguments. E.g.::
+
+            {
+                'dsn': 'TestDSN',
+            }
+
+        .. seealso:: https://code.google.com/p/pyodbc/wiki/Module
+
 
     :param schema_name:
         Name of the DB schema to use.
@@ -203,9 +210,14 @@ class BaseImporter(object):
     _batch_import_timestamp = None
 
     def __init__(
-            self, reader_obj, dsn, schema_name, batch_source_path, **kwargs):
+            self,
+            reader_obj,
+            schema_name,
+            batch_source_path,
+            odbc_kwargs={},
+            **kwargs):
         self._reader_obj = reader_obj
-        self._dsn = dsn
+        self._odbc_kwargs = odbc_kwargs
         self._schema_name = schema_name
         self._kwargs = kwargs
         self._kwargs.update({
@@ -222,9 +234,9 @@ class BaseImporter(object):
 
         """
         logger.info('Setup VerticaBatch for {0}'.format(
-                self.__class__.__name__))
+            self.__class__.__name__))
         return VerticaBatch(
-            dsn=self._dsn,
+            odbc_kwargs=self._odbc_kwargs,
             table_name='{0}.{1}'.format(self._schema_name, self.table_name),
             column_list=self._get_db_column_list(),
         )
@@ -347,7 +359,7 @@ class BaseImporter(object):
 
         """
         batch_source_path_exists = self.get_batch_source_path_exists(
-            self._dsn, self._kwargs['batch_source_path'])
+            self._kwargs['batch_source_path'], odbc_kwargs=self._odbc_kwargs)
 
         if batch_source_path_exists:
             raise AlreadyImportedError(
@@ -383,21 +395,27 @@ class BaseImporter(object):
             )
 
     @classmethod
-    def get_batch_source_path_exists(cls, dsn, batch_source_path):
+    def get_batch_source_path_exists(cls, batch_source_path, odbc_kwargs={}):
         """
         Check if the batch source-path exists in the database.
 
-        :param dsn:
-            The ODBC data source-name (``str``).
-
         :param batch_source_path:
             The batch source-path (``str``).
+
+        :param odbc_kwargs:
+            A ``dict`` containing the ODBC connection keyword arguments. E.g.::
+
+                {
+                    'dsn': 'TestDSN',
+                }
+
+            .. seealso:: https://code.google.com/p/pyodbc/wiki/Module
 
         :return:
             ``True`` if it already exists, else ``False``.
 
         """
-        connection = get_connection(dsn)
+        connection = get_connection(**odbc_kwargs)
         cursor = connection.cursor()
         cursor.execute(
             'SELECT batch_source_path FROM {batch_history_table} '
@@ -416,18 +434,24 @@ class BaseImporter(object):
         return False
 
     @classmethod
-    def get_last_imported_batch_source_path(cls, dsn):
+    def get_last_imported_batch_source_path(cls, odbc_kwargs):
         """
         Return the last imported batch source-path.
 
-        :param dsn:
-            The ODBC data source-name (``str``).
+        :param odbc_kwargs:
+            A ``dict`` containing the ODBC connection keyword arguments. E.g.::
+
+                {
+                    'dsn': 'TestDSN',
+                }
+
+            .. seealso:: https://code.google.com/p/pyodbc/wiki/Module
 
         :return:
             A ``str`` representing the last imported batch source-path.
 
         """
-        connection = get_connection(dsn)
+        connection = get_connection(**odbc_kwargs)
         cursor = connection.cursor()
         cursor.execute(
             'SELECT batch_source_path FROM {batch_history_table} '

@@ -47,6 +47,14 @@ Links
 Changes
 -------
 
+v1.4.0
+~~~~~~
+
+* **CHANGE**: Make it more easy to pass more arguments to ``get_connection``
+  through ``BaseImporter`` and ``VerticaBatch.`` Note that this is a backwards
+  incompatible change as the arguments for ``BaseImporter``, ``VerticaBatch``
+  and ``get_connection`` have changed.
+
 
 v1.3.0
 ~~~~~~
