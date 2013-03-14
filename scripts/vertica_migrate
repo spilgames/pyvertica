@@ -15,7 +15,7 @@ parser.add_argument(
     help='commit DDLS and copy data (without it will perform a dry-run)',
 )
 parser.add_argument(
-    '--log',
+    '--log-level',
     dest='log_level',
     choices=['debug', 'info', 'warning', 'error', 'critical'],
     default='info',
