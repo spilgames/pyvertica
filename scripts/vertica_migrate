@@ -22,15 +22,6 @@ parser.add_argument(
     help='loglevel of loghandler (default: info)',
 )
 parser.add_argument(
-    '--target-pwd',
-    dest='target_pwd',
-    default='',
-    help=(
-        'Password of the target vertica. Used only to '
-        'export data via the vertica CONNECT statement'
-    )
-)
-parser.add_argument(
     '--skip-ddls',
     dest='skip_ddls',
     action='store_true',
@@ -73,15 +64,6 @@ parser.add_argument(
     action='store_true',
     default=False,
     help='Truncate destination tables before copying data over.'
-)
-parser.add_argument(
-    '--source-pwd',
-    dest='source_pwd',
-    default='',
-    help=(
-        'Password of the source vertica. Needed only if vsql needs '
-        'to be used to get the ddls.'
-    )
 )
 parser.add_argument(
     '--source-not-reconnect',
@@ -169,8 +151,8 @@ if __name__ == '__main__':
         # defaults to the argparser. Then, reparse the arguments.
         config = ConfigParser.SafeConfigParser()
         config.read(args.config_path)
-        defaults = dict(config.items('vertica_migrate'))
-        parser.set_defaults(**defaults)
+        config_dict = dict(config.items('vertica_migrate'))
+        parser.set_defaults(**config_dict)
         args = parser.parse_args()
 
     setup_log_handler(args)

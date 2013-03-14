@@ -129,6 +129,28 @@ a config file (``--config-path``). Example::
   source_pwd=sourcepassword
   log_level=warning
 
+Any command-line argument accepting a string (eg: ``--log-level warning``) is
+accepted (eg: ``log_level=warning``). The following extra options are
+available in the config-file:
+
+target_user
+    Username of the target Vertica database.
+
+target_pwd
+    Password of the target Vertica database.
+
+target_host
+    Hostname of the target Vertica database.
+
+source_user
+    Username of the source Vertica database.
+
+source_pwd
+    Password of the source Vertica database.
+
+source_host
+    Hostname of the target Vertica database.
+
 
 Usage within Python code
 ------------------------
