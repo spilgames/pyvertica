@@ -67,6 +67,8 @@ Tool to import a CSV-like file directly into Vertica.
                             specifies the end of a record (default: newline)
 
 
+.. _vertica_migrate:
+
 ``vertica_migrate``
 ~~~~~~~~~~~~~~~~~~~
 

@@ -149,7 +149,14 @@ if __name__ == '__main__':
     if args.config_path:
         # if config_path is set, parse the config values and add them as
         # defaults to the argparser. Then, reparse the arguments.
-        config = ConfigParser.SafeConfigParser()
+        config = ConfigParser.SafeConfigParser({
+            'target_user': '',
+            'target_pwd': '',
+            'target_host': '',
+            'source_user': '',
+            'source_pwd': '',
+            'source_host': '',
+        })
         config.read(args.config_path)
         config_dict = dict(config.items('vertica_migrate'))
         parser.set_defaults(**config_dict)

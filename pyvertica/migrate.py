@@ -36,17 +36,11 @@ class VerticaMigrator(object):
         A ``bool`` asking to commit or not the changes.
 
     :param args:
-        A ``dict`` of extra parameters. It must contain:
+        A ``dict`` of extra parameters. It will contain the command-line
+        arguments + the configuration values.
 
-        target_pwd
-            password of the target vertica
+        .. seealso:: :ref:`vertica_migrate`.
 
-        target_port
-            port of the target vertica.
-
-        Those 2 options are needed as I have not found a way to get them
-        from pyodbc of the target vertica. The other connect option for data
-        export (user, host) can be found via the connection to the target DSN.
     """
 
     # regexp to get name of the CREATE SEQUENCE statements
@@ -85,16 +79,26 @@ class VerticaMigrator(object):
         Setup db connections
         """
 
-        ip_sql = ('SELECT node_address FROM v_catalog.nodes '
-        'ORDER BY node_name LIMIT 1')
+        ip_sql = (
+            'SELECT node_address FROM v_catalog.nodes '
+            'ORDER BY node_name LIMIT 1'
+        )
 
-        self._source_con = get_connection(dsn=self._source_dsn,
-            reconnect=self._kwargs.get('source_reconnect', True))
+        self._source_con = get_connection(
+            dsn=self._source_dsn,
+            user=self._kwargs.get('source_user'),
+            password=self._kwargs.get('source_pwd'),
+            reconnect=self._kwargs.get('source_reconnect', True),
+        )
         self._source = self._source_con.cursor()
         self._source_ip = self._source.execute(ip_sql).fetchone()[0]
 
-        self._target_con = get_connection(dsn=self._target_dsn,
-            reconnect=self._kwargs.get('target_reconnect', True))
+        self._target_con = get_connection(
+            dsn=self._target_dsn,
+            user=self._kwargs.get('target_user'),
+            password=self._kwargs.get('target_pwd'),
+            reconnect=self._kwargs.get('target_reconnect', True)
+        )
         self._target = self._target_con.cursor()
         self._target_ip = self._target.execute(ip_sql).fetchone()[0]
 
@@ -136,7 +140,7 @@ class VerticaMigrator(object):
         ``EXPORT_OBJECTS`` SQL function.
 
         It happens that this function returns ``None`` from odbc. In that case
-        vsql is used, and the --source_pwd parameters becomes useful.
+        vsql is used, and the ``source_pwd`` parameter becomes useful.
 
         :return:
             A ``str`` containg the DDLs.
@@ -153,19 +157,17 @@ class VerticaMigrator(object):
             logger.warning('Exporting object is done via vsql')
             details = connection_details(self._source_con)
 
-            details['pwd'] = self._kwargs.get('source_pwd', '')
             err = 'Unknown error'
             try:
                 pr = subprocess.Popen([
-                #ddls = subprocess.check_output([
                     '/opt/vertica/bin/vsql',
-                    '-U', details['user'],
-                    '-h', details['host'],
+                    '-U', self._kwargs.get('source_user'),
+                    '-h', self._kwargs.get('source_host'),
                     '-d', details['db'],
                     '-t',  # rows only
-                    '-w',  details['pwd'],
+                    '-w',  self._kwargs.get('source_pwd'),
                     '-c',  export_sql
-                    ],  stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                ],  stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 ddls, err = pr.communicate()
             except CalledProcessError as e:
                 raise VerticaMigratorError("""
@@ -359,18 +361,30 @@ class VerticaMigrator(object):
         """
         details = connection_details(self._target)
 
-        details['pwd'] = self._kwargs.get('target_pwd', '')
-        if self._kwargs.get('target_host', None) is not None:
-            details['host'] = self._kwargs['target_host']
-
-        connect = ("CONNECT TO VERTICA {db} USER {user} "
-        "PASSWORD '{pwd}' ON '{host}',5433").format(
+        connect = (
+            "CONNECT TO VERTICA {db} USER {user} "
+            "PASSWORD '{pwd}' ON '{host}',5433".format(
                 db=details['db'],
-                user=details['user'],
-                host=details['host'],
-                pwd=details['pwd'])
+                user=self._kwargs.get('target_user'),
+                host=self._kwargs.get('target_host'),
+                pwd=self._kwargs.get('target_pwd')
+            )
+        )
+
         try:
             self._source.execute(connect)
+            self._target.execute(
+                'CREATE GLOBAL TEMPORARY TABLE tmp_connect (test VARCHAR(42)) '
+                'ON COMMIT DELETE ROWS'
+            )
+            self._source.execute(
+                'EXPORT TO VERTICA {db}.connect_tst AS SELECT * '
+                'FROM v_catalog.dual'.format(
+                    db=details['db']
+                )
+            )
+            self._target.execute('DROP TABLE tmp_connect')
+
             return 'direct'
         except:
             return 'odbc'
@@ -553,7 +567,11 @@ class VerticaMigrator(object):
             # which could be the case in dryrun
             if self._commit:
                 batch = VerticaBatch(
-                    odbc_kwargs={'dsn': self._target_dsn},
+                    odbc_kwargs={
+                        'dsn': self._target_dsn,
+                        'user': self._kwargs.get('target_user'),
+                        'password': self._kwargs.get('target_pwd'),
+                    },
                     table_name=tname,
                     truncate_table=self._kwargs.get('truncate', False),
                     reconnect=self._kwargs.get('target_reconnect', True),

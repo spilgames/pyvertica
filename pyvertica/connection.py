@@ -71,10 +71,10 @@ def connection_details(con):
     Given one connection objects returns information about it.
 
     :param con:
-        A :py:func:`!pyodbc.connect` object # THIS IS WRONG
+        An instance of :class:`!pyodbc.Connection`.
 
     return:
-        A ``dict`` of information:
+        A ``dict`` with the following keys / values:
 
         host
             Connected node IP address
