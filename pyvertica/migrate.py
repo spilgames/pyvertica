@@ -450,8 +450,35 @@ class VerticaMigrator(object):
         last_error = sys.maxint
         errors = []
 
-        while len(ddls) > 0:
-            ddl = ddls.pop(0).strip()
+        while len(ddls) >= 0:
+            # we should have been done, but there were errors
+            # Let's retry them
+            if len(ddls) == 0 and len(errors) > 0:
+                if len(errors) < last_error:
+                    last_error = len(errors)
+                    logging.warning(
+                        '{nb} DDL migration errors, retrying them.'.format(
+                        nb=last_error))
+                    ddls.extend(errors)
+                    errors = []
+                else:
+                    #error list is not shrinking
+                    # display all of them
+                    for e in errors:
+                        try:
+                            self._exec_ddl(e)
+                        except Exception as e:
+                            logging.exception(e)
+                    raise VerticaMigratorError(
+                        'Unrecoverable errors detected during DDL migration, '
+                        'aborting'
+                    )
+
+            try:
+                ddl = ddls.pop(0).strip()
+            except IndexError:
+                # we're done
+                break
 
             # pyodbc or vertica statement hangs when executing ''
             if ddl == '':
@@ -505,25 +532,6 @@ class VerticaMigrator(object):
 
                 count += 1
                 self._exec_ddl(alter)
-
-            # we should have been done, but there were errors
-            # Let's retry them
-            if len(ddls) == 0 and len(errors) > 0:
-                if len(errors) < last_error:
-                    last_error = len(errors)
-                    logging.warning(
-                        '{nb} DDL migration errors, retrying them.'.format(
-                        nb=last_error))
-                    ddls.extend(errors)
-                    errors = []
-                else:
-                    #error list is not shrinking
-                    # display all of them
-                    for e in errors:
-                        try:
-                            self._exec_ddl(e)
-                        except Exception as e:
-                            logging.exception(e)
 
         wouldhavebeen = 'would have been (with --commit)'
         if self._commit:

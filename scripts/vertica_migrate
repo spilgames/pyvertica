@@ -80,12 +80,6 @@ parser.add_argument(
     help='Do not try to avoid load balancer by reconnecting.'
 )
 parser.add_argument(
-    '--target-host',
-    dest='target_host',
-    default=None,
-    help='If the target name of the CONNECT statement needs to be given.'
-)
-parser.add_argument(
     '--config-path',
     dest='config_path',
     default=None,
