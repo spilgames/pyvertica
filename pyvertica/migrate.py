@@ -580,7 +580,11 @@ class VerticaMigrator(object):
                     row = self._source.fetchone()
                     if row is None:
                         break
-                    batch.insert_list([x.decode('utf-8') for x in row])
+                    batch.insert_list([
+                        x.decode('utf-8')
+                        if isinstance(x, str)
+                        else x for x in row
+                    ])
                     nbrows += 1
                 batch.commit()
             else:
