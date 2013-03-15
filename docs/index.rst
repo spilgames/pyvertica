@@ -78,11 +78,10 @@ Tool to migrate data from one to another Vertica cluster.
 
     usage: vertica_migrate [-h] [--commit]
                            [--log-level {debug,info,warning,error,critical}]
-                           [--target-pwd TARGET_PWD] [--skip-ddls] [--clever-ddls]
-                           [--skip-data] [--even-not-empty] [--limit LIMIT]
-                           [--truncate] [--source-pwd SOURCE_PWD]
+                           [--skip-ddls] [--clever-ddls] [--skip-data]
+                           [--even-not-empty] [--limit LIMIT] [--truncate]
                            [--source-not-reconnect] [--target-not-reconnect]
-                           [--target-host TARGET_HOST] [--config-path CONFIG_PATH]
+                           [--config-path CONFIG_PATH]
                            source target [objects [objects ...]]
 
     Vertica Migrator
@@ -98,9 +97,6 @@ Tool to migrate data from one to another Vertica cluster.
                             dry-run)
       --log-level {debug,info,warning,error,critical}
                             loglevel of loghandler (default: info)
-      --target-pwd TARGET_PWD
-                            Password of the target vertica. Used only to export
-                            data via the vertica CONNECT statement
       --skip-ddls           Do not copy the DDLs over.
       --clever-ddls         If when copying a DDL an object with the same name
                             already exists, skip the copy.
@@ -108,16 +104,10 @@ Tool to migrate data from one to another Vertica cluster.
       --even-not-empty      Do not stop if the target DB is not empty.
       --limit LIMIT         Limit the number of rows to copy over, per table.
       --truncate            Truncate destination tables before copying data over.
-      --source-pwd SOURCE_PWD
-                            Password of the source vertica. Needed only if vsql
-                            needs to be used to get the ddls.
       --source-not-reconnect
                             Do not try to avoid load balancer by reconnecting.
       --target-not-reconnect
                             Do not try to avoid load balancer by reconnecting.
-      --target-host TARGET_HOST
-                            If the target name of the CONNECT statement needs to
-                            be given.
       --config-path CONFIG_PATH
                             Absolute path to a config file (useful for storing
                             credentials).
