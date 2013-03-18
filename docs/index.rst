@@ -113,7 +113,7 @@ Tool to migrate data from one to another Vertica cluster.
                             credentials).
 
 
-To not expose passwords on the command-line, it is possible to pass them as
+To not expose passwords on the command-line, it is mandatory to pass them as
 a config file (``--config-path``). Example::
 
   [vertica_migrate]
