@@ -18,7 +18,7 @@ Installation
 Links
 -----
 
-* `documentation <http://packages.python.org/pyvertica/>`_
+* `documentation <https://pyvertica.readthedocs.org/en/latest/>`_
 * `source <http://github.com/spilgames/pyvertica/>`_
 
 
