@@ -25,8 +25,12 @@ Links
 Command-line usage
 ------------------
 
-This package contains a command-line utility called *vertica_batch_import*.
-Usage::
+``vertica_batch_import``
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Tool to import a CSV-like file directly into Vertica.
+
+::
 
     usage: vertica_batch_import [-h] [--commit]
                                 [--partial-commit-after PARTIAL_COMMIT_AFTER]
@@ -63,16 +67,21 @@ Usage::
                             specifies the end of a record (default: newline)
 
 
-This package contains a command-line utility called *vertica_migrate*.
-Usage::
+.. _vertica_migrate:
+
+``vertica_migrate``
+~~~~~~~~~~~~~~~~~~~
+
+Tool to migrate data from one to another Vertica cluster.
+
+::
 
     usage: vertica_migrate [-h] [--commit]
-                           [--log {debug,info,warning,error,critical}]
-                           [--target_pwd TARGET_PWD] [--skip_ddls] [--clever_ddls]
-                           [--skip_data] [--even_not_empty] [--limit LIMIT]
-                           [--truncate] [--source_pwd SOURCE_PWD]
-                           [--source_not_reconnect] [--target_not_reconnect]
-                           [--target_host TARGET_HOST]
+                           [--log-level {debug,info,warning,error,critical}]
+                           [--skip-ddls] [--clever-ddls] [--skip-data]
+                           [--even-not-empty] [--limit LIMIT] [--truncate]
+                           [--source-not-reconnect] [--target-not-reconnect]
+                           [--config-path CONFIG_PATH]
                            source target [objects [objects ...]]
 
     Vertica Migrator
@@ -86,28 +95,53 @@ Usage::
       -h, --help            show this help message and exit
       --commit              commit DDLS and copy data (without it will perform a
                             dry-run)
-      --log {debug,info,warning,error,critical}
+      --log-level {debug,info,warning,error,critical}
                             loglevel of loghandler (default: info)
-      --target_pwd TARGET_PWD
-                            Password of the target vertica. Used only to export
-                            data via the vertica CONNECT statement
-      --skip_ddls           Do not copy the DDLs over.
-      --clever_ddls         If when copying a DDL an object with the same name
+      --skip-ddls           Do not copy the DDLs over.
+      --clever-ddls         If when copying a DDL an object with the same name
                             already exists, skip the copy.
-      --skip_data           Do not copy the data over.
-      --even_not_empty      Do not stop if the target DB is not empty.
+      --skip-data           Do not copy the data over.
+      --even-not-empty      Do not stop if the target DB is not empty.
       --limit LIMIT         Limit the number of rows to copy over, per table.
       --truncate            Truncate destination tables before copying data over.
-      --source_pwd SOURCE_PWD
-                            Password of the source vertica. Needed only if vsql
-                            needs to be used to get the ddls.
-      --source_not_reconnect
+      --source-not-reconnect
                             Do not try to avoid load balancer by reconnecting.
-      --target_not_reconnect
+      --target-not-reconnect
                             Do not try to avoid load balancer by reconnecting.
-      --target_host TARGET_HOST
-                            If the target name of the CONNECT statement needs to
-                            be given.
+      --config-path CONFIG_PATH
+                            Absolute path to a config file (useful for storing
+                            credentials).
+
+
+To not expose passwords on the command-line, it is mandatory to pass them as
+a config file (``--config-path``). Example::
+
+  [vertica_migrate]
+  target_pwd=targetpassword
+  source_pwd=sourcepassword
+  log_level=warning
+
+Any command-line argument accepting a string (eg: ``--log-level warning``) is
+accepted (eg: ``log_level=warning``). The following extra options are
+available in the config-file:
+
+target_user
+    Username of the target Vertica database.
+
+target_pwd
+    Password of the target Vertica database.
+
+target_host
+    Hostname of the target Vertica database.
+
+source_user
+    Username of the source Vertica database.
+
+source_pwd
+    Password of the source Vertica database.
+
+source_host
+    Hostname of the target Vertica database.
 
 
 Usage within Python code

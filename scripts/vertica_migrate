@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import ConfigParser
 import argparse
 import logging
 
@@ -13,64 +14,50 @@ parser.add_argument(
     action='store_true',
     help='commit DDLS and copy data (without it will perform a dry-run)',
 )
-
 parser.add_argument(
-    '--log',
+    '--log-level',
     dest='log_level',
     choices=['debug', 'info', 'warning', 'error', 'critical'],
     default='info',
     help='loglevel of loghandler (default: info)',
 )
-
-
 parser.add_argument(
-    '--target_pwd',
-    dest='target_pwd',
-    default='',
-    help='Password of the target vertica. Used only to '
-        'export data via the vertica CONNECT statement',
-)
-
-parser.add_argument(
-    '--skip_ddls',
+    '--skip-ddls',
     dest='skip_ddls',
     action='store_true',
     help='Do not copy the DDLs over.',
     default=False
 )
-
 parser.add_argument(
-    '--clever_ddls',
+    '--clever-ddls',
     dest='clever_ddls',
     action='store_true',
-    help='If when copying a DDL an object with the same name already exists, skip the copy.',
+    help=(
+        'If when copying a DDL an object with the same name already exists, '
+        'skip the copy.'
+    ),
     default=False
 )
-
-
 parser.add_argument(
-    '--skip_data',
+    '--skip-data',
     dest='skip_data',
     action='store_true',
     help='Do not copy the data over.',
     required=False
 )
-
 parser.add_argument(
-    '--even_not_empty',
+    '--even-not-empty',
     dest='even_not_empty',
     action='store_true',
     help='Do not stop if the target DB is not empty.',
     default=False
 )
-
 parser.add_argument(
     '--limit',
     dest='limit',
     default='ALL',
     help='Limit the number of rows to copy over, per table.'
 )
-
 parser.add_argument(
     '--truncate',
     dest='truncate',
@@ -78,37 +65,27 @@ parser.add_argument(
     default=False,
     help='Truncate destination tables before copying data over.'
 )
-
-
 parser.add_argument(
-    '--source_pwd',
-    dest='source_pwd',
-    default='',
-    help='Password of the source vertica. Needed only if vsql needs '
-        'to be used to get the ddls.',
-)
-
-parser.add_argument(
-    '--source_not_reconnect',
+    '--source-not-reconnect',
     dest='source_reconnect',
     default=True,
     action='store_false',
     help='Do not try to avoid load balancer by reconnecting.'
 )
-
 parser.add_argument(
-    '--target_not_reconnect',
+    '--target-not-reconnect',
     dest='target_reconnect',
     default=True,
     action='store_false',
     help='Do not try to avoid load balancer by reconnecting.'
 )
-
 parser.add_argument(
-    '--target_host',
-    dest='target_host',
+    '--config-path',
+    dest='config_path',
     default=None,
-    help='If the target name of the CONNECT statement needs to be given.'
+    required=True,
+    type=str,
+    help='Absolute path to a config file (useful for storing credentials).'
 )
 
 
@@ -117,13 +94,11 @@ parser.add_argument(
     type=str,
     help='ODBC data source name',
 )
-
 parser.add_argument(
     'target',
     type=str,
     help='ODBC data source name',
 )
-
 parser.add_argument(
     'objects',
     type=str,
@@ -165,6 +140,23 @@ def setup_log_handler(args):
 
 if __name__ == '__main__':
     args = parser.parse_args()
+
+    if args.config_path:
+        # if config_path is set, parse the config values and add them as
+        # defaults to the argparser. Then, reparse the arguments.
+        config = ConfigParser.SafeConfigParser({
+            'target_user': '',
+            'target_pwd': '',
+            'target_host': '',
+            'source_user': '',
+            'source_pwd': '',
+            'source_host': '',
+        })
+        config.read(args.config_path)
+        config_dict = dict(config.items('vertica_migrate'))
+        parser.set_defaults(**config_dict)
+        args = parser.parse_args()
+
     setup_log_handler(args)
     logger = logging.getLogger(__name__)
 

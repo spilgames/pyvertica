@@ -444,7 +444,7 @@ class VerticaMigratorTestCase(unittest.TestCase):
         migrator._exec_ddl = Mock()
         migrator._exec_ddl.side_effect = Exception('Boom')
 
-        migrator.migrate_ddls()
+        self.assertRaises(VerticaMigratorError, migrator.migrate_ddls)
         # 1st call => error, go to errors
         # 2nd call => error again, errors do no shrink
         # 3rd call => to display
