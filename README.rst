@@ -47,6 +47,14 @@ Links
 Changes
 -------
 
+v1.4.1
+~~~~~~
+
+* **CHANGE**: Make it possible to pass host, and credentials to the
+  ``vertica_migrate`` tool by using an config file (to not expose credentials
+  on the command-line).
+
+
 v1.4.0
 ~~~~~~
 
