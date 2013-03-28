@@ -47,10 +47,15 @@ Links
 Changes
 -------
 
-v1.4.2
+v1.5.0
 ~~~~~~
 
 * **ADD**: ``rolllback`` method to ``VerticaBatch`` object.
+* **ADD**: ``REJECTMAX`` option.
+* **CHANGE**: ``VerticaBatch.get_errors`` now returns the number of errors
+  instead of a ``bool`` indicating if there are errors.
+* **CHANGE**: ``REJECTEDFILE`` option is now set to ``__debug__``.
+
 
 
 v1.4.1
