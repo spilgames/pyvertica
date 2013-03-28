@@ -47,6 +47,12 @@ Links
 Changes
 -------
 
+v1.4.2
+~~~~~~
+
+* **ADD**: ``rolllback`` method to ``VerticaBatch`` object.
+
+
 v1.4.1
 ~~~~~~
 
