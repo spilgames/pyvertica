@@ -538,6 +538,16 @@ class VerticaBatch(object):
         logger.info('Transaction comitted, {0} lines inserted'.format(
             batch_count))
 
+    def rollback(self):
+        """
+        Rollback the current transaction.
+        """
+        if self._in_batch:
+            self._end_batch()
+
+        self._connection.rollback()
+        logger.info('Transaction rolled back')
+
     def get_cursor(self):
         """
         Return a cursor to the database.

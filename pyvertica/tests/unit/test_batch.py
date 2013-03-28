@@ -518,6 +518,36 @@ class VerticaBatchTestCase(unittest.TestCase):
         batch._connection.commit.assert_called_once_with()
 
     @patch('pyvertica.batch.get_connection')
+    def test_rollback_in_batch(self, get_connection):
+        """
+        Test :py:meth:`.VerticaBatch.rollback` while in batch.
+        """
+        batch = self.get_batch()
+        batch._in_batch = True
+        batch._end_batch = Mock()
+        batch._connection = Mock()
+
+        batch.rollback()
+
+        batch._end_batch.assert_called_once_with()
+        batch._connection.rollback.assert_called_once_with()
+
+    @patch('pyvertica.batch.get_connection')
+    def test_rollback_not_in_batch(self, get_connection):
+        """
+        Test :py:meth:`.VerticaBatch.rollback` while not in batch.
+        """
+        batch = self.get_batch()
+        batch._in_batch = False
+        batch._end_batch = Mock()
+        batch._connection = Mock()
+
+        batch.rollback()
+
+        self.assertEqual(0, batch._end_batch.call_count)
+        batch._connection.rollback.assert_called_once_with()
+
+    @patch('pyvertica.batch.get_connection')
     def test_get_cursor(self, get_connection):
         """
         Test :py:meth:`.VerticaBatch.get_cursor`.
