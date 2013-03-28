@@ -338,6 +338,21 @@ class VerticaBatchTestCase(unittest.TestCase):
             batch._get_sql_lcopy_str()
         )
 
+    @patch('pyvertica.batch.get_connection', Mock())
+    def test__get_num_rejected_rows(self):
+        """
+        Test :py:meth:`.VerticaBatch._get_num_rejected_rows`.
+        """
+        batch = self.get_batch()
+        batch._in_batch = False
+        batch.get_batch_count = Mock(return_value=1)
+        batch._cursor = Mock()
+
+        result = batch._cursor.execute.return_value
+        result.fetchone.return_value = [10]
+
+        self.assertEqual(10, batch._get_num_rejected_rows())
+
     @patch('pyvertica.batch.get_connection')
     def test_insert_list(self, get_connection):
         """
@@ -396,6 +411,7 @@ class VerticaBatchTestCase(unittest.TestCase):
         batch._in_batch = True
         batch._end_batch = Mock()
         batch._cursor = Mock()
+        batch._get_num_rejected_rows = Mock(return_value=0)
 
         batch._cursor.execute.side_effect = Exception('Kaboom!')
 
@@ -412,6 +428,7 @@ class VerticaBatchTestCase(unittest.TestCase):
         batch._end_batch = Mock()
         batch._cursor = Mock()
         batch._rejected_file_obj = tempfile.NamedTemporaryFile()
+        batch._get_num_rejected_rows = Mock(return_value=0)
 
         batch._cursor.execute.side_effect = Exception(
             'Somewhere are no constraints defined, oh dear!')
@@ -442,12 +459,14 @@ class VerticaBatchTestCase(unittest.TestCase):
         batch._end_batch = Mock()
         batch._cursor = Mock()
         batch._rejected_file_obj = tempfile.NamedTemporaryFile()
+        batch._get_num_rejected_rows = Mock(return_value=0)
 
+        batch._cursor.execute.return_value.rowcount = 10
         batch._cursor.execute.return_value.fetchone.return_value = ['a', 'b']
 
         errors_tuple = batch.get_errors()
 
-        self.assertTrue(errors_tuple[0])
+        self.assertEqual(10, errors_tuple[0])
         self.assertEqual(
             'At least one constraint not met: a, b\n', errors_tuple[1].read())
 
@@ -461,6 +480,7 @@ class VerticaBatchTestCase(unittest.TestCase):
         batch._end_batch = Mock()
         batch._cursor = Mock()
         batch._rejected_file_obj = tempfile.NamedTemporaryFile()
+        batch._get_num_rejected_rows = Mock(return_value=123)
 
         batch._cursor.execute.return_value.rowcount = 0
 
@@ -469,7 +489,7 @@ class VerticaBatchTestCase(unittest.TestCase):
 
         errors_tuple = batch.get_errors()
 
-        self.assertTrue(errors_tuple[0])
+        self.assertEqual(123, errors_tuple[0])
         self.assertEqual(
             'Rejected data at line: 123\nRejected data at line: 456\n',
             errors_tuple[1].read()

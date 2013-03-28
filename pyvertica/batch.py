@@ -311,6 +311,24 @@ class VerticaBatch(object):
 
         return ended_clean
 
+    def _get_num_rejected_rows(self):
+        """
+        Return the number of rejected rows.
+
+        :return:
+            An ``int``.
+
+        """
+        if self._in_batch:
+            self._end_batch()
+
+        if not self.get_batch_count():
+            return 0
+
+        rejected_rows = self._cursor.execute('SELECT GET_NUM_REJECTED_ROWS()')
+        rejected_rows = rejected_rows.fetchone()
+        return rejected_rows[0]
+
     def get_batch_count(self):
         """
         Return number (``int``) of inserted items since last commit.
@@ -480,11 +498,14 @@ class VerticaBatch(object):
             these errors will show up within this method.
 
         :return:
-            A ``tuple`` with as first item a ``bool`` representing if there are
-            errors (``True`` = errors, ``False`` = no errors). The second item
-            is a file-like object containing the error-data in plain text.
-            Since this is an instance of :py:class:`!tempfile.TemporaryFile`,
-            it will be removed automatically.
+            A ``tuple`` with as first item a ``int`` representing the number
+            of errors. The second item is a file-like object containing the
+            error-data in plain text. Since this is an instance
+            of :py:class:`!tempfile.TemporaryFile`, it will be removed
+            automatically.
+
+            .. note:: The file-like object can be blank, when ``REJECTEDFILE``
+               is set to ``False``.
 
         """
         if self._in_batch:
@@ -494,6 +515,8 @@ class VerticaBatch(object):
 
         if not self.get_batch_count():
             return(False, error_file_obj)
+
+        error_count = self._get_num_rejected_rows()
 
         if self._analyze_constraints:
             try:
@@ -506,6 +529,7 @@ class VerticaBatch(object):
                 analyze_constraints = None
 
             if analyze_constraints and analyze_constraints.rowcount > 0:
+                error_count += analyze_constraints.rowcount
                 error_file_obj.write(
                     'At least one constraint not met: {0}\n'.format(
                         ', '.join(analyze_constraints.fetchone())))
@@ -529,10 +553,9 @@ class VerticaBatch(object):
 
             error_file_obj.write(line)
 
-        errors = error_file_obj.tell() > 0
         error_file_obj.seek(0)
 
-        return (errors, error_file_obj)
+        return (error_count, error_file_obj)
 
     def commit(self):
         """
