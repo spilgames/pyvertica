@@ -105,7 +105,7 @@ class VerticaBatch(object):
         from pyvertica.batch import VerticaBatch
 
         batch = VerticaBatch(
-            dsn='VerticaDWH',
+            odbc_kwargs={'dsn': 'VerticaDWH'},
             table_name='schema.my_table',
             truncate=True,
             column_list=['column_1', 'column_2'],
