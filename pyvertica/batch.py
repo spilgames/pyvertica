@@ -259,7 +259,8 @@ class VerticaBatch(object):
         os.mkfifo(self._fifo_path)
 
         # create rejected file obj
-        self._rejected_file_obj = tempfile.NamedTemporaryFile(bufsize=0)
+        if self.copy_options_dict['REJECTEDFILE']:
+            self._rejected_file_obj = tempfile.NamedTemporaryFile(bufsize=0)
 
         # setup query thread
         self._query_thread_semaphore_obj = threading.Semaphore(0)
@@ -531,26 +532,27 @@ class VerticaBatch(object):
                     'At least one constraint not met: {0}\n'.format(
                         ', '.join(analyze_constraints.fetchone())))
 
-        self._rejected_file_obj.seek(0)
-        file_size = os.path.getsize(self._rejected_file_obj.name)
-        read_func = lambda: self._rejected_file_obj.read(1024 * 1024)
-        error_prefix = 'Rejected data at line: '
+        if self.copy_options_dict['REJECTEDFILE']:
+            self._rejected_file_obj.seek(0)
+            file_size = os.path.getsize(self._rejected_file_obj.name)
+            read_func = lambda: self._rejected_file_obj.read(1024 * 1024)
+            error_prefix = 'Rejected data at line: '
 
-        for counter, line in enumerate(iter((read_func), '')):
-            if counter == 0:
-                error_file_obj.write(error_prefix)
+            for counter, line in enumerate(iter((read_func), '')):
+                if counter == 0:
+                    error_file_obj.write(error_prefix)
 
-            line = line.replace(
-                self.copy_options_dict['RECORD TERMINATOR'],
-                '\n{0}'.format(error_prefix)
-            )
+                line = line.replace(
+                    self.copy_options_dict['RECORD TERMINATOR'],
+                    '\n{0}'.format(error_prefix)
+                )
 
-            if self._rejected_file_obj.tell() == file_size:
-                line = line[:-len(error_prefix)]
+                if self._rejected_file_obj.tell() == file_size:
+                    line = line[:-len(error_prefix)]
 
-            error_file_obj.write(line)
+                error_file_obj.write(line)
 
-        error_file_obj.seek(0)
+            error_file_obj.seek(0)
 
         return (error_count, error_file_obj)
 
