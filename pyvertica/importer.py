@@ -382,6 +382,8 @@ class BaseImporter(object):
             self._insert_into_history(batch_db_cursor)
             batch_obj.commit()
         else:
+            batch_obj.rollback()
+
             for error_line in errors_file_obj:
                 logger.error('Batch error ({0}): {1}'.format(
                     self._kwargs['batch_source_path'],
