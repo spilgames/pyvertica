@@ -381,12 +381,9 @@ class VerticaBatch(object):
             output_str += " REJECTED DATA '{0}'".format(
                 self._rejected_file_obj.name)
 
-        # rejectmax
-        output_str += " REJECTMAX {0}".format(
-            self.copy_options_dict['REJECTMAX'])
-
         # other arguments which map one-to-one
         for key in [
+                'REJECTMAX',
                 'DELIMITER',
                 'ENCLOSED BY',
                 'SKIP',
@@ -504,7 +501,7 @@ class VerticaBatch(object):
             of :py:class:`!tempfile.TemporaryFile`, it will be removed
             automatically.
 
-            .. note:: The file-like object can be blank, when ``REJECTEDFILE``
+            .. note:: The file-like object can be empty, when ``REJECTEDFILE``
                is set to ``False``.
 
         """
