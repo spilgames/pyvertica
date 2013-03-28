@@ -186,10 +186,15 @@ class VerticaBatch(object):
         'NULL': '',
         'RECORD TERMINATOR': '\x01',
         'NO COMMIT': True,
-        'REJECTEDFILE': True,
+        'REJECTEDFILE': __debug__,
+        'REJECTMAX': 0,
     }
     """
     Default copy options for SQL query.
+
+    .. note:: By default ``REJECTEDFILE`` is set to ``__debug__``, which is
+       ``True``, unless you've set the ``PYTHONOPTIMIZE`` environment variable.
+
     """
 
     def __init__(
@@ -357,6 +362,10 @@ class VerticaBatch(object):
         if self.copy_options_dict['REJECTEDFILE']:
             output_str += " REJECTED DATA '{0}'".format(
                 self._rejected_file_obj.name)
+
+        # rejectmax
+        output_str += " REJECTMAX {0}".format(
+            self.copy_options_dict['REJECTMAX'])
 
         # other arguments which map one-to-one
         for key in [

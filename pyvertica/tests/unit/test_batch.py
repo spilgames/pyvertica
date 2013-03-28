@@ -145,7 +145,8 @@ class VerticaBatchTestCase(unittest.TestCase):
             'RECORD TERMINATOR': '\x01',
             'NULL': '',
             'NO COMMIT': True,
-            'REJECTEDFILE': True,
+            'REJECTEDFILE': __debug__,
+            'REJECTMAX': 0,
         }, batch.copy_options_dict)
         self.assertEqual(0, batch._total_count)
         self.assertEqual(0, batch._batch_count)
@@ -331,6 +332,7 @@ class VerticaBatchTestCase(unittest.TestCase):
         self.assertEqual(
             "COPY schema.test_table (column_1, column_2, column_3) "
             "FROM LOCAL '/tmp/fifo' REJECTED DATA '/tmp/rejected' "
+            "REJECTMAX 0 "
             "DELIMITER ',' ENCLOSED BY '\"' SKIP 1 NULL '' "
             "RECORD TERMINATOR '\x01' NO COMMIT",
             batch._get_sql_lcopy_str()
