@@ -214,6 +214,7 @@ class BaseImporterTestCase(unittest.TestCase):
         self.assertRaises(BatchImportError, importer.start_import)
 
         self.assertEqual(0, batch_obj.commit.call_count)
+        self.assertEqual(1, batch_obj.rollback.call_count)
 
         self.assertEqual([
             call('Batch error (test/path): Error 1'),

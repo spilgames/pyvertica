@@ -376,12 +376,14 @@ class BaseImporter(object):
 
         logger.info('Last line inserted')
 
-        errors_bool, errors_file_obj = batch_obj.get_errors()
-        if not errors_bool:
+        error_count, errors_file_obj = batch_obj.get_errors()
+        if not error_count:
             batch_db_cursor = batch_obj.get_cursor()
             self._insert_into_history(batch_db_cursor)
             batch_obj.commit()
         else:
+            batch_obj.rollback()
+
             for error_line in errors_file_obj:
                 logger.error('Batch error ({0}): {1}'.format(
                     self._kwargs['batch_source_path'],

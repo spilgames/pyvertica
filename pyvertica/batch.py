@@ -105,7 +105,7 @@ class VerticaBatch(object):
         from pyvertica.batch import VerticaBatch
 
         batch = VerticaBatch(
-            dsn='VerticaDWH',
+            odbc_kwargs={'dsn': 'VerticaDWH'},
             table_name='schema.my_table',
             truncate=True,
             column_list=['column_1', 'column_2'],
@@ -186,10 +186,15 @@ class VerticaBatch(object):
         'NULL': '',
         'RECORD TERMINATOR': '\x01',
         'NO COMMIT': True,
-        'REJECTEDFILE': True,
+        'REJECTEDFILE': __debug__,
+        'REJECTMAX': 0,
     }
     """
     Default copy options for SQL query.
+
+    .. note:: By default ``REJECTEDFILE`` is set to ``__debug__``, which is
+       ``True``, unless you've set the ``PYTHONOPTIMIZE`` environment variable.
+
     """
 
     def __init__(
@@ -254,7 +259,8 @@ class VerticaBatch(object):
         os.mkfifo(self._fifo_path)
 
         # create rejected file obj
-        self._rejected_file_obj = tempfile.NamedTemporaryFile(bufsize=0)
+        if self.copy_options_dict['REJECTEDFILE']:
+            self._rejected_file_obj = tempfile.NamedTemporaryFile(bufsize=0)
 
         # setup query thread
         self._query_thread_semaphore_obj = threading.Semaphore(0)
@@ -305,6 +311,24 @@ class VerticaBatch(object):
             raise self._query_exc_queue.get()
 
         return ended_clean
+
+    def _get_num_rejected_rows(self):
+        """
+        Return the number of rejected rows.
+
+        :return:
+            An ``int``.
+
+        """
+        if self._in_batch:
+            self._end_batch()
+
+        if not self.get_batch_count():
+            return 0
+
+        rejected_rows = self._cursor.execute('SELECT GET_NUM_REJECTED_ROWS()')
+        rejected_rows = rejected_rows.fetchone()
+        return rejected_rows[0]
 
     def get_batch_count(self):
         """
@@ -360,6 +384,7 @@ class VerticaBatch(object):
 
         # other arguments which map one-to-one
         for key in [
+                'REJECTMAX',
                 'DELIMITER',
                 'ENCLOSED BY',
                 'SKIP',
@@ -471,11 +496,14 @@ class VerticaBatch(object):
             these errors will show up within this method.
 
         :return:
-            A ``tuple`` with as first item a ``bool`` representing if there are
-            errors (``True`` = errors, ``False`` = no errors). The second item
-            is a file-like object containing the error-data in plain text.
-            Since this is an instance of :py:class:`!tempfile.TemporaryFile`,
-            it will be removed automatically.
+            A ``tuple`` with as first item a ``int`` representing the number
+            of errors. The second item is a file-like object containing the
+            error-data in plain text. Since this is an instance
+            of :py:class:`!tempfile.TemporaryFile`, it will be removed
+            automatically.
+
+            .. note:: The file-like object can be empty, when ``REJECTEDFILE``
+               is set to ``False``.
 
         """
         if self._in_batch:
@@ -485,6 +513,8 @@ class VerticaBatch(object):
 
         if not self.get_batch_count():
             return(False, error_file_obj)
+
+        error_count = self._get_num_rejected_rows()
 
         if self._analyze_constraints:
             try:
@@ -497,33 +527,34 @@ class VerticaBatch(object):
                 analyze_constraints = None
 
             if analyze_constraints and analyze_constraints.rowcount > 0:
+                error_count += analyze_constraints.rowcount
                 error_file_obj.write(
                     'At least one constraint not met: {0}\n'.format(
                         ', '.join(analyze_constraints.fetchone())))
 
-        self._rejected_file_obj.seek(0)
-        file_size = os.path.getsize(self._rejected_file_obj.name)
-        read_func = lambda: self._rejected_file_obj.read(1024 * 1024)
-        error_prefix = 'Rejected data at line: '
+        if self.copy_options_dict['REJECTEDFILE']:
+            self._rejected_file_obj.seek(0)
+            file_size = os.path.getsize(self._rejected_file_obj.name)
+            read_func = lambda: self._rejected_file_obj.read(1024 * 1024)
+            error_prefix = 'Rejected data at line: '
 
-        for counter, line in enumerate(iter((read_func), '')):
-            if counter == 0:
-                error_file_obj.write(error_prefix)
+            for counter, line in enumerate(iter((read_func), '')):
+                if counter == 0:
+                    error_file_obj.write(error_prefix)
 
-            line = line.replace(
-                self.copy_options_dict['RECORD TERMINATOR'],
-                '\n{0}'.format(error_prefix)
-            )
+                line = line.replace(
+                    self.copy_options_dict['RECORD TERMINATOR'],
+                    '\n{0}'.format(error_prefix)
+                )
 
-            if self._rejected_file_obj.tell() == file_size:
-                line = line[:-len(error_prefix)]
+                if self._rejected_file_obj.tell() == file_size:
+                    line = line[:-len(error_prefix)]
 
-            error_file_obj.write(line)
+                error_file_obj.write(line)
 
-        errors = error_file_obj.tell() > 0
-        error_file_obj.seek(0)
+            error_file_obj.seek(0)
 
-        return (errors, error_file_obj)
+        return (error_count, error_file_obj)
 
     def commit(self):
         """
@@ -537,6 +568,16 @@ class VerticaBatch(object):
         self._connection.commit()
         logger.info('Transaction comitted, {0} lines inserted'.format(
             batch_count))
+
+    def rollback(self):
+        """
+        Rollback the current transaction.
+        """
+        if self._in_batch:
+            self._end_batch()
+
+        self._connection.rollback()
+        logger.info('Transaction rolled back')
 
     def get_cursor(self):
         """

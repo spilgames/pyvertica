@@ -145,7 +145,8 @@ class VerticaBatchTestCase(unittest.TestCase):
             'RECORD TERMINATOR': '\x01',
             'NULL': '',
             'NO COMMIT': True,
-            'REJECTEDFILE': True,
+            'REJECTEDFILE': __debug__,
+            'REJECTMAX': 0,
         }, batch.copy_options_dict)
         self.assertEqual(0, batch._total_count)
         self.assertEqual(0, batch._batch_count)
@@ -331,10 +332,26 @@ class VerticaBatchTestCase(unittest.TestCase):
         self.assertEqual(
             "COPY schema.test_table (column_1, column_2, column_3) "
             "FROM LOCAL '/tmp/fifo' REJECTED DATA '/tmp/rejected' "
+            "REJECTMAX 0 "
             "DELIMITER ',' ENCLOSED BY '\"' SKIP 1 NULL '' "
             "RECORD TERMINATOR '\x01' NO COMMIT",
             batch._get_sql_lcopy_str()
         )
+
+    @patch('pyvertica.batch.get_connection', Mock())
+    def test__get_num_rejected_rows(self):
+        """
+        Test :py:meth:`.VerticaBatch._get_num_rejected_rows`.
+        """
+        batch = self.get_batch()
+        batch._in_batch = False
+        batch.get_batch_count = Mock(return_value=1)
+        batch._cursor = Mock()
+
+        result = batch._cursor.execute.return_value
+        result.fetchone.return_value = [10]
+
+        self.assertEqual(10, batch._get_num_rejected_rows())
 
     @patch('pyvertica.batch.get_connection')
     def test_insert_list(self, get_connection):
@@ -394,6 +411,7 @@ class VerticaBatchTestCase(unittest.TestCase):
         batch._in_batch = True
         batch._end_batch = Mock()
         batch._cursor = Mock()
+        batch._get_num_rejected_rows = Mock(return_value=0)
 
         batch._cursor.execute.side_effect = Exception('Kaboom!')
 
@@ -410,6 +428,7 @@ class VerticaBatchTestCase(unittest.TestCase):
         batch._end_batch = Mock()
         batch._cursor = Mock()
         batch._rejected_file_obj = tempfile.NamedTemporaryFile()
+        batch._get_num_rejected_rows = Mock(return_value=0)
 
         batch._cursor.execute.side_effect = Exception(
             'Somewhere are no constraints defined, oh dear!')
@@ -440,12 +459,14 @@ class VerticaBatchTestCase(unittest.TestCase):
         batch._end_batch = Mock()
         batch._cursor = Mock()
         batch._rejected_file_obj = tempfile.NamedTemporaryFile()
+        batch._get_num_rejected_rows = Mock(return_value=0)
 
+        batch._cursor.execute.return_value.rowcount = 10
         batch._cursor.execute.return_value.fetchone.return_value = ['a', 'b']
 
         errors_tuple = batch.get_errors()
 
-        self.assertTrue(errors_tuple[0])
+        self.assertEqual(10, errors_tuple[0])
         self.assertEqual(
             'At least one constraint not met: a, b\n', errors_tuple[1].read())
 
@@ -459,6 +480,7 @@ class VerticaBatchTestCase(unittest.TestCase):
         batch._end_batch = Mock()
         batch._cursor = Mock()
         batch._rejected_file_obj = tempfile.NamedTemporaryFile()
+        batch._get_num_rejected_rows = Mock(return_value=123)
 
         batch._cursor.execute.return_value.rowcount = 0
 
@@ -467,7 +489,7 @@ class VerticaBatchTestCase(unittest.TestCase):
 
         errors_tuple = batch.get_errors()
 
-        self.assertTrue(errors_tuple[0])
+        self.assertEqual(123, errors_tuple[0])
         self.assertEqual(
             'Rejected data at line: 123\nRejected data at line: 456\n',
             errors_tuple[1].read()
@@ -516,6 +538,36 @@ class VerticaBatchTestCase(unittest.TestCase):
 
         self.assertEqual(0, batch._end_batch.call_count)
         batch._connection.commit.assert_called_once_with()
+
+    @patch('pyvertica.batch.get_connection')
+    def test_rollback_in_batch(self, get_connection):
+        """
+        Test :py:meth:`.VerticaBatch.rollback` while in batch.
+        """
+        batch = self.get_batch()
+        batch._in_batch = True
+        batch._end_batch = Mock()
+        batch._connection = Mock()
+
+        batch.rollback()
+
+        batch._end_batch.assert_called_once_with()
+        batch._connection.rollback.assert_called_once_with()
+
+    @patch('pyvertica.batch.get_connection')
+    def test_rollback_not_in_batch(self, get_connection):
+        """
+        Test :py:meth:`.VerticaBatch.rollback` while not in batch.
+        """
+        batch = self.get_batch()
+        batch._in_batch = False
+        batch._end_batch = Mock()
+        batch._connection = Mock()
+
+        batch.rollback()
+
+        self.assertEqual(0, batch._end_batch.call_count)
+        batch._connection.rollback.assert_called_once_with()
 
     @patch('pyvertica.batch.get_connection')
     def test_get_cursor(self, get_connection):
