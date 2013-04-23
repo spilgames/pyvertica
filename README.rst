@@ -47,6 +47,12 @@ Links
 Changes
 -------
 
+v1.5.1
+~~~~~~
+
+* Use latest pyodbc version.
+
+
 v1.5.0
 ~~~~~~
 

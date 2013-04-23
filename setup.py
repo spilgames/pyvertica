@@ -24,6 +24,6 @@ setup(
     install_requires=[
         'argparse',
         'logutils',
-        'pyodbc==3.0.3',
+        'pyodbc',
     ]
 )
