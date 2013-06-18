@@ -511,8 +511,8 @@ class VerticaMigrator(object):
                 errors.append(ddl)
 
             if new_seq is not None:
-                create = 'CREATE SEQUENCE {schema}.{name} '
-                'START WITH {start}'.format(
+                create = ('CREATE SEQUENCE {schema}.{name} '
+                'START WITH {start}').format(
                     schema=new_seq['schema'],
                     name=new_seq['name'],
                     start=new_seq['start']
