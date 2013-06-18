@@ -378,7 +378,7 @@ class VerticaMigrator(object):
                 'ON COMMIT DELETE ROWS'
             )
             self._source.execute(
-                'EXPORT TO VERTICA {db}.connect_tst AS SELECT * '
+                'EXPORT TO VERTICA {db}.tmp_connect AS SELECT * '
                 'FROM v_catalog.dual'.format(
                     db=details['db']
                 )
