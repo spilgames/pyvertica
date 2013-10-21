@@ -566,7 +566,7 @@ class VerticaBatch(object):
             self._end_batch()
 
         self._connection.commit()
-        logger.info('Transaction comitted, {0} lines inserted'.format(
+        logger.info('Transaction committed, {0} lines inserted'.format(
             batch_count))
 
     def rollback(self):
