@@ -178,6 +178,11 @@ class VerticaBatch(object):
         and their defaults, see :py:attr:`~.VerticaBatch.copy_options_dict`.
         *Optional*.
 
+    :param connection:
+        A ``pyodbc.Connection`` to use instead of opening a new connection. If
+        this parameter is supplied, ``odbc_kwargs`` may not be supplied.
+        Default: ``None``. *Optional*.
+
     """
     copy_options_dict = {
         'DELIMITER': ';',
