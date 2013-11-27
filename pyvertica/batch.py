@@ -209,8 +209,8 @@ class VerticaBatch(object):
             connection=None):
 
         if connection and odbc_kwargs:
-            raise ValueError("May only specify one of [connection, odbc_kwargs]")
-
+            raise ValueError("May only specify one of "
+                             "[connection, odbc_kwargs]")
 
         self._odbc_kwargs = odbc_kwargs
         self._table_name = table_name
@@ -229,7 +229,8 @@ class VerticaBatch(object):
             if 'password' in odbc_kwargs_copy:
                 odbc_kwargs_copy['password'] = '*****'
             logger.debug(
-                'Initializing VerticaBatch with odbc_kwargs={0}, table_name={1}, '
+                'Initializing VerticaBatch with odbc_kwargs={0}, '
+                'table_name={1}, '
                 'column_list={2}'.format(
                     odbc_kwargs_copy, table_name, column_list))
             self._connection = get_connection(
