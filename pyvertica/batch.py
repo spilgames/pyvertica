@@ -228,8 +228,8 @@ class VerticaBatch(object):
 
         self._in_batch = False
 
-         # make sure we are not logging any passwords :)
         if not connection:
+            # make sure we are not logging any passwords :)
             odbc_kwargs_copy = copy.deepcopy(odbc_kwargs)
             if 'password' in odbc_kwargs_copy:
                 odbc_kwargs_copy['password'] = '*****'
