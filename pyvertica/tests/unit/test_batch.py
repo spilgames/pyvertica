@@ -178,7 +178,7 @@ class VerticaBatchTestCase(unittest.TestCase):
         batch = VerticaBatch(table_name='table',
                              column_list=[],
                              connection=connection)
-        self.assertEqual(connect, batch._connection)
+        self.assertEqual(connection, batch._connection)
         connection.cursor.assert_any_call()
 
     def test__init__connection_or_odbc_kwargs(self):
