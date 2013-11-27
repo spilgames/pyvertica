@@ -183,7 +183,7 @@ class VerticaBatchTestCase(unittest.TestCase):
             'odbc_kwargs': {'dsn': 'TestDSN'},
             'connection': 'connection'
         }
-        self.assertRaises(ValueError, VerticaBatch.__init__,  **args)
+        self.assertRaises(ValueError, VerticaBatch.__init__, **args)
 
     @patch('pyvertica.batch.get_connection')
     def test_truncate_table(self, get_connection):
