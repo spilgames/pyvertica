@@ -175,7 +175,9 @@ class VerticaBatchTestCase(unittest.TestCase):
         Test passing connection to VerticaBatch instead of odbc_kwargs.
         """
         connection = "mock_connection"
-        batch = VerticaBatch(connection=connection)
+        batch = VerticaBatch(table_name='table',
+                             column_list=[],
+                             connection=connection)
         self.assertEqual(connect, batch._connection)
 
     def test__init__connection_or_odbc_kwargs(self):
@@ -183,7 +185,14 @@ class VerticaBatchTestCase(unittest.TestCase):
             'odbc_kwargs': {'dsn': 'TestDSN'},
             'connection': 'connection'
         }
-        self.assertRaises(ValueError, VerticaBatch.__init__, **args)
+        try:
+            VerticaBatch(table_name='table',
+                         column_list=[],
+                         odbc_kwargs=args,
+                         connection="connection")
+            self.fail("Should throw ValueError")
+        except ValueError:
+            pass
 
     @patch('pyvertica.batch.get_connection')
     def test_truncate_table(self, get_connection):
