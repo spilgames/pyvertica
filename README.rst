@@ -34,7 +34,7 @@ Provided scripts
 Installation
 ------------
 
-*pyvertica* can be installing by executing ``pip install pyvertica``.
+*pyvertica* can be installed by executing ``pip install pyvertica``.
 
 
 Links
