@@ -47,6 +47,13 @@ Links
 Changes
 -------
 
+v1.5.2
+~~~~~~
+
+* **ADD**: ``connection`` paratmeter to ``VerticaBatch`` to allow usage of
+  an existing connection.
+
+
 v1.5.1
 ~~~~~~
 
