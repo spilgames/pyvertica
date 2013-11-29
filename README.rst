@@ -34,7 +34,7 @@ Provided scripts
 Installation
 ------------
 
-*pyvertica* can be installing by executing ``pip install pyvertica``.
+*pyvertica* can be installed by executing ``pip install pyvertica``.
 
 
 Links
@@ -46,6 +46,13 @@ Links
 
 Changes
 -------
+
+v1.5.2
+~~~~~~
+
+* **ADD**: ``connection`` paratmeter to ``VerticaBatch`` to allow usage of
+  an existing connection.
+
 
 v1.5.1
 ~~~~~~

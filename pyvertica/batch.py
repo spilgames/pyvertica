@@ -178,6 +178,11 @@ class VerticaBatch(object):
         and their defaults, see :py:attr:`~.VerticaBatch.copy_options_dict`.
         *Optional*.
 
+    :param connection:
+        A ``pyodbc.Connection`` to use instead of opening a new connection. If
+        this parameter is supplied, ``odbc_kwargs`` may not be supplied.
+        Default: ``None``. *Optional*.
+
     """
     copy_options_dict = {
         'DELIMITER': ';',
@@ -205,15 +210,12 @@ class VerticaBatch(object):
             reconnect=True,
             analyze_constraints=True,
             column_list=[],
-            copy_options={}):
-        # make sure we are not logging any passwords :)
-        odbc_kwargs_copy = copy.deepcopy(odbc_kwargs)
-        if 'password' in odbc_kwargs_copy:
-            odbc_kwargs_copy['password'] = '*****'
-        logger.debug(
-            'Initializing VerticaBatch with odbc_kwargs={0}, table_name={1}, '
-            'column_list={2}'.format(
-                odbc_kwargs_copy, table_name, column_list))
+            copy_options={},
+            connection=None):
+
+        if connection and odbc_kwargs:
+            raise ValueError("May only specify one of "
+                             "[connection, odbc_kwargs]")
 
         self._odbc_kwargs = odbc_kwargs
         self._table_name = table_name
@@ -226,9 +228,21 @@ class VerticaBatch(object):
 
         self._in_batch = False
 
-        # setup db connection
-        self._connection = get_connection(
-            reconnect=reconnect, **self._odbc_kwargs)
+        if not connection:
+            # make sure we are not logging any passwords :)
+            odbc_kwargs_copy = copy.deepcopy(odbc_kwargs)
+            if 'password' in odbc_kwargs_copy:
+                odbc_kwargs_copy['password'] = '*****'
+            logger.debug(
+                'Initializing VerticaBatch with odbc_kwargs={0}, '
+                'table_name={1}, '
+                'column_list={2}'.format(
+                    odbc_kwargs_copy, table_name, column_list))
+            self._connection = get_connection(
+                reconnect=reconnect, **self._odbc_kwargs)
+        else:
+            self._connection = connection
+
         self._cursor = self._connection.cursor()
 
         # truncate table, if needed

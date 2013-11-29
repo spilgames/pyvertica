@@ -170,6 +170,31 @@ class VerticaBatchTestCase(unittest.TestCase):
         self.get_batch(truncate_table=True)
         truncate_table.assert_called_once_with()
 
+    def test__init__connection(self):
+        """"
+        Test passing connection to VerticaBatch instead of odbc_kwargs.
+        """
+        connection = Mock()
+        batch = VerticaBatch(table_name='table',
+                             column_list=[],
+                             connection=connection)
+        self.assertEqual(connection, batch._connection)
+        connection.cursor.assert_any_call()
+
+    def test__init__connection_or_odbc_kwargs(self):
+        args = {
+            'odbc_kwargs': {'dsn': 'TestDSN'},
+            'connection': Mock()
+        }
+        try:
+            VerticaBatch(table_name='table',
+                         column_list=[],
+                         odbc_kwargs=args,
+                         connection="connection")
+            self.fail("Should throw ValueError")
+        except ValueError:
+            pass
+
     @patch('pyvertica.batch.get_connection')
     def test_truncate_table(self, get_connection):
         """
