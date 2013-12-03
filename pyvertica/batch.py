@@ -421,7 +421,8 @@ class VerticaBatch(object):
                                value_list,
                                suffix=None):
         """
-        Convert a single ``iterable`` to a vertica insert row.
+        Convert a single ``iterable`` to a string that represents one item
+        in the batch.
 
         :param value_list:
             An ``iterable``. Each item represents one column value
@@ -462,8 +463,8 @@ class VerticaBatch(object):
     @require_started_batch
     def insert_lists(self, value_lists, row_count=1):
         """
-        Insert a set of ``iterable`` values (instead of a single string).
-        The interable can be a list of lists, a generator, etc.
+        Insert an ``iterable`` of ``iterable`` values (instead of a single
+        string). The iterables can be lists, generators, etc.
 
         Example::
 
@@ -476,7 +477,7 @@ class VerticaBatch(object):
         :param row_count:
             An ``int``. The number of rows being inserted. Since the
             ``value_lists`` parameter may be a generator, the number of
-            rows is not easily distinguishable. Therefore, the number of
+            rows is not easily determinable. Therefore, the number of
             rows being inserted must be specified.
         """
         suffix = self.copy_options_dict['RECORD TERMINATOR']

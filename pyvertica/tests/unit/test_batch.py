@@ -434,6 +434,8 @@ class VerticaBatchTestCase(unittest.TestCase):
         batch.insert_lists(lists, row_count=2)
         batch._fifo_obj.write.assert_called_once_with(
             u'"line1value1","line1value2"\x01"line2value1","line2value2"\x01')
+        self.assertEqual(2, batch._total_count)
+        self.assertEqual(2, batch._batch_count)
 
     @patch('pyvertica.batch.VerticaBatch._start_batch')
     @patch('pyvertica.batch.get_connection')
