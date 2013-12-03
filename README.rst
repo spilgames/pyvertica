@@ -47,6 +47,14 @@ Links
 Changes
 -------
 
+v1.5.3
+~~~~~~
+
+* **ADD**: ``insert_lists`` method to ``VerticaBatch``. This method takes
+  multiple lists, converts them to rows, and invokes a single insert rather
+  than one insert per row.
+
+
 v1.5.2
 ~~~~~~
 

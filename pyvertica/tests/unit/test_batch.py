@@ -378,6 +378,29 @@ class VerticaBatchTestCase(unittest.TestCase):
 
         self.assertEqual(10, batch._get_num_rejected_rows())
 
+    @patch('pyvertica.batch.get_connection', Mock())
+    def test__single_list_to_string(self):
+        """
+        Test :py:meth:`.VerticaBatch._single_list_to_string`.
+        """
+        batch = self.get_batch()
+        single_list = ['val1', 'val2']
+        expected = u'"val1","val2"'
+        self.assertEqual(expected,
+                         batch._single_list_to_string(single_list))
+
+    @patch('pyvertica.batch.get_connection', Mock())
+    def test__single_list_to_string_suffix(self):
+        """
+        Test :py:meth:`.VerticaBatch._single_list_to_string`.
+        """
+        batch = self.get_batch()
+        single_list = ['val1', 'val2']
+        expected = u'"val1","val2"SUFFIX'
+        self.assertEqual(expected,
+                         batch._single_list_to_string(single_list,
+                                                      suffix='SUFFIX'))
+
     @patch('pyvertica.batch.get_connection')
     def test_insert_list(self, get_connection):
         """
@@ -393,6 +416,24 @@ class VerticaBatchTestCase(unittest.TestCase):
         )
         batch.insert_line.assert_called_once_with(
             u'"valué1","valu\\"e2","None",,"100","value4"')
+
+    @patch('pyvertica.batch.VerticaBatch._start_batch')
+    @patch('pyvertica.batch.get_connection')
+    def test_insert_lists(self, get_connection, start_batch):
+        """
+        Test :py:meth:`.VerticaBatch.insert_lists`.
+        """
+        batch = self.get_batch()
+        batch._fifo_obj = Mock()
+
+        lists = [
+            ['line1value1', "line1value2"],
+            ['line2value1', "line2value2"]
+        ]
+
+        batch.insert_lists(lists, row_count=2)
+        batch._fifo_obj.write.assert_called_once_with(
+            u'"line1value1","line1value2"\x01"line2value1","line2value2"\x01')
 
     @patch('pyvertica.batch.VerticaBatch._start_batch')
     @patch('pyvertica.batch.get_connection')
