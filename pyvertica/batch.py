@@ -110,7 +110,8 @@ class VerticaBatch(object):
             column_list=['column_1', 'column_2'],
             copy_options={
                 'DELIMITER': ',',
-            }
+            },
+            multi_batch=False
         )
 
         row_list = [
@@ -133,19 +134,19 @@ class VerticaBatch(object):
         multiple times (for example after every 50000 records). Please note
         that after the first insert and after calling
         :py:meth:`~.VerticaBatch.commit`, the output of
-        :py:meth:`~.VerticaBatch.get_errors` will reflect the new serie of
+        :py:meth:`~.VerticaBatch.get_errors` will reflect the new series of
         inserts and thus not contain the "old" inserts.
 
     .. note:: Creating a new batch object will not create a lock on the target
         table. This will happen only after first insert.
 
-    .. note:: Although the batch object is automagically reusable, after a
-        :py:meth:`~.VerticaBatch.commit` the locks are realeased up to next
-        insert.
-
     .. note:: If a batch is created with ``multi_batch = True``,
-        :py:math:`~.VerticaBatch.close_batch` must be explicity called when
-        the batch resources should be closed.
+        :py:meth:`~.VerticaBatch.close_batch` must be explicity called when
+        the batch resources should be closed. If ``multi_batch`` is set to
+        ``False``, :py:meth:`~.VerticaBatch.close_batch` need not be called.
+        In this case, while the batch is reusable, the system resources will
+        be realoccated uppon each :py:meth:`~.VerticaBatch.commit`, which
+        may not be desirable.
 
     :param table_name:
         A ``str`` representing the table name (including the schema) to write
@@ -341,12 +342,11 @@ class VerticaBatch(object):
         self._in_batch = False
         return ended_clean
 
-
     def close_batch(self):
         """
         Close out the batch.
 
-        This will remove the FIFO file and stop the :py:class:`.TaskThread`.
+        This will remove the FIFO file and stop the ``taskthread.TaskThread``.
 
         """
 

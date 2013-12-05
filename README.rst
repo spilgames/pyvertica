@@ -47,6 +47,15 @@ Links
 Changes
 -------
 
+v1.6.0
+~~~~~~
+
+* **FEATURE** ``VerticaBatch`` will not open a new thread or fifo
+  each time a new batch is started if ``multi_batch`` is set to ``True``.
+  This will reduce the overhead each time the batch is committed, provided
+  the user wants to call ``commit`` more than once on a single batch.
+
+
 v1.5.3
 ~~~~~~
 
