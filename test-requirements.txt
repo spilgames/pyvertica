@@ -2,6 +2,7 @@
 argparse
 logutils
 pyodbc
+taskthread
 
 
 # Documentation
