@@ -30,10 +30,12 @@ class VerticaMigratorTestCase(unittest.TestCase):
         return migrator
 
     ### different sanity options.
-    @patch('pyvertica.migrate.VerticaMigrator._source_ip', '1.2.3.4',
-        create=True)
-    @patch('pyvertica.migrate.VerticaMigrator._target_ip', '5.6.7.8',
-        create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._source_ip',
+           '1.2.3.4',
+           create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._target_ip',
+           '5.6.7.8',
+           create=True)
     @patch('pyvertica.migrate.VerticaMigrator._target', create=True)
     @patch('pyvertica.migrate.VerticaMigrator._set_connections')
     def test__sanity_ok(self, cnx, target):
@@ -44,12 +46,16 @@ class VerticaMigratorTestCase(unittest.TestCase):
         target.execute.return_value.fetchone.return_value = [0]
         VerticaMigrator('SourceDSN', 'TargetDSN', False)
 
-    @patch('pyvertica.migrate.VerticaMigrator._source_ip', '1.2.3.4',
-        create=True)
-    @patch('pyvertica.migrate.VerticaMigrator._target_ip', '1.2.3.4',
-        create=True)
-    @patch('pyvertica.migrate.VerticaMigrator._source', create=True)
-    @patch('pyvertica.migrate.VerticaMigrator._target', create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._source_ip',
+           '1.2.3.4',
+           create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._target_ip',
+           '1.2.3.4',
+           create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._source',
+           create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._target',
+           create=True)
     @patch('pyvertica.migrate.VerticaMigrator._set_connections')
     def test__sanity_same_ip_diff_db(self, cnx, target, source):
         """
@@ -61,10 +67,12 @@ class VerticaMigratorTestCase(unittest.TestCase):
         source.execute.return_value.fetchone.return_value = ['sourceDB']
         VerticaMigrator('SourceDSN', 'TargetDSN', False)
 
-    @patch('pyvertica.migrate.VerticaMigrator._source_ip', '1.2.3.4',
-        create=True)
-    @patch('pyvertica.migrate.VerticaMigrator._target_ip', '1.2.3.4',
-        create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._source_ip',
+           '1.2.3.4',
+           create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._target_ip',
+           '1.2.3.4',
+           create=True)
     @patch('pyvertica.migrate.VerticaMigrator._source', create=True)
     @patch('pyvertica.migrate.VerticaMigrator._target', create=True)
     @patch('pyvertica.migrate.VerticaMigrator._set_connections')
@@ -75,13 +83,15 @@ class VerticaMigratorTestCase(unittest.TestCase):
         """
         target.execute.return_value.fetchone.side_effect = [['targetDB'], [0]]
         source.execute.return_value.fetchone.return_value = ['targetDB']
-        self.assertRaises(VerticaMigratorError,
-        VerticaMigrator, 'SourceDSN', 'TargetDSN', False)
+        self.assertRaises(VerticaMigratorError, VerticaMigrator,
+                          'SourceDSN', 'TargetDSN', False)
 
-    @patch('pyvertica.migrate.VerticaMigrator._source_ip', '1.2.3.4',
-        create=True)
-    @patch('pyvertica.migrate.VerticaMigrator._target_ip', '5.6.7.8',
-        create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._source_ip',
+           '1.2.3.4',
+           create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._target_ip',
+           '5.6.7.8',
+           create=True)
     @patch('pyvertica.migrate.VerticaMigrator._target', create=True)
     @patch('pyvertica.migrate.VerticaMigrator._set_connections')
     def test__sanity_not_empty(self, cnx, target):
@@ -90,13 +100,15 @@ class VerticaMigratorTestCase(unittest.TestCase):
         Exception if target DB is not empty.
         """
         target.execute.return_value.fetchone.return_value = [42]
-        self.assertRaises(VerticaMigratorError,
-            VerticaMigrator, 'SourceDSN', 'TargetDSN', False)
+        self.assertRaises(VerticaMigratorError, VerticaMigrator,
+                          'SourceDSN', 'TargetDSN', False)
 
-    @patch('pyvertica.migrate.VerticaMigrator._source_ip', '1.2.3.4',
-        create=True)
-    @patch('pyvertica.migrate.VerticaMigrator._target_ip', '5.6.7.8',
-        create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._source_ip',
+           '1.2.3.4',
+           create=True)
+    @patch('pyvertica.migrate.VerticaMigrator._target_ip',
+           '5.6.7.8',
+           create=True)
     @patch('pyvertica.migrate.VerticaMigrator._target', create=True)
     @patch('pyvertica.migrate.VerticaMigrator._set_connections')
     def test__sanity_not_empty_but_thats_ok(self, cnx, target):
@@ -271,8 +283,8 @@ class VerticaMigratorTestCase(unittest.TestCase):
     @patch('pyvertica.migrate.VerticaMigrator._source', create=True)
     def test__replace_initialised_identity(self, source):
 
-        source.execute.return_value.fetchone.side_effect = [
-        ['cheezy_seq'], [42]]
+        source.execute.return_value.fetchone.side_effect = \
+            [['cheezy_seq'], [42]]
 
         ddl, new_id = self.get_migrator()._replace_identity(
             '''CREATE TABLE schema.cheese (
@@ -286,17 +298,14 @@ class VerticaMigratorTestCase(unittest.TestCase):
                 runny BOOLEAN
                 )
                 ''')
-        self.assertEqual(new_id, {'schema': 'schema',
-                    'table': 'cheese',
-                    'col': 'id',
-                    'start':  43,
-                    'name': 'cheezy_seq'
-                    })
+        self.assertEqual(new_id, {'schema': 'schema', 'table': 'cheese',
+                                  'col': 'id', 'start':  43,
+                                  'name': 'cheezy_seq'})
 
     @patch('pyvertica.migrate.VerticaMigrator._source', create=True)
     def test__replace_uninitialised_identity(self, source):
-        source.execute.return_value.fetchone.side_effect = [
-        ['cheezy_seq'], [None]]
+        source.execute.return_value.fetchone.side_effect = \
+            [['cheezy_seq'], [None]]
         ddl, new_id = self.get_migrator()._replace_identity(
             '''CREATE TABLE schema.cheese (
                 id IDENTITY,
@@ -309,12 +318,9 @@ class VerticaMigratorTestCase(unittest.TestCase):
                 runny BOOLEAN
                 )
                 ''')
-        self.assertEqual(new_id, {'schema': 'schema',
-                    'table': 'cheese',
-                    'col': 'id',
-                    'start':  1,
-                    'name': 'cheezy_seq'
-                    })
+        self.assertEqual(new_id, {'schema': 'schema', 'table': 'cheese',
+                                  'col': 'id', 'start':  1,
+                                  'name': 'cheezy_seq'})
 
     # ### test TEMPORARY TABLE
     def test__is_tmptable_true(self):
@@ -429,12 +435,16 @@ class VerticaMigratorTestCase(unittest.TestCase):
         migrator._is_sequence = Mock(return_value=False)
         migrator._uses_identity = Mock(return_value=True)
         migrator._replace_identity = Mock(return_value=['WITH IDENTITY',
-         {'schema':'s', 'name':'n', 'start':'s', 'table':'t', 'col':'c'}])
+                                                        {'schema': 's',
+                                                         'name': 'n',
+                                                         'start': 's',
+                                                         'table': 't',
+                                                         'col': 'c'}])
 
         migrator._exec_ddl = Mock()
         migrator.migrate_ddls()
         self.assertEqual(call('WITH IDENTITY'),
-            migrator._exec_ddl.call_args_list[0])
+                         migrator._exec_ddl.call_args_list[0])
         self.assertEqual(3, migrator._exec_ddl.call_count)
 
     def test_migrate_ddls_error(self):
@@ -476,8 +486,8 @@ class VerticaMigratorTestCase(unittest.TestCase):
     @patch('pyvertica.migrate.VerticaBatch', Mock())
     def test__migrate_table_other(self, target, source):
         migrator = self.get_migrator()
-        self.assertRaises(VerticaMigratorError,
-            migrator._migrate_table, 'something', 'a.table', {'db': 'db'})
+        self.assertRaises(VerticaMigratorError, migrator._migrate_table,
+                          'something', 'a.table', {'db': 'db'})
 
     @patch('pyvertica.migrate.VerticaMigrator._source', create=True)
     @patch('pyvertica.migrate.VerticaMigrator._target', create=True)

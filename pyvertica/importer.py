@@ -255,7 +255,7 @@ class BaseImporter(object):
         """
         extra_field_list = [x['field_name'] for x in self.extra_fields]
         data_field_list = [x.get('db_field_name', x['field_name'])
-            for x in self.mapping_list]
+                           for x in self.mapping_list]
 
         db_column_list = extra_field_list + data_field_list
 
@@ -282,7 +282,7 @@ class BaseImporter(object):
             output_list.append(data_method(row_data_dict))
 
         output_list.extend([row_data_dict[x['field_name']]
-            for x in self.mapping_list])
+                            for x in self.mapping_list])
 
         return output_list
 

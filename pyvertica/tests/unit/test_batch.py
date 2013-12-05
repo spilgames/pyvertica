@@ -75,7 +75,7 @@ class QueryTestCase(unittest.TestCase):
         cursor = Mock()
         sql_query_str = Mock()
 
-        query= Query(cursor, sql_query_str, Mock(), Mock())
+        query = Query(cursor, sql_query_str, Mock(), Mock())
         query.run_query()
 
         cursor.execute.assert_called_once_with(sql_query_str)
@@ -210,14 +210,12 @@ class VerticaBatchTestCase(unittest.TestCase):
     @patch('pyvertica.batch.VerticaBatch._get_sql_lcopy_str')
     @patch('pyvertica.batch.Query')
     @patch('pyvertica.batch.get_connection')
-    def test__start_batch(
-                self,
-                get_connection,
-                QueryMock,
-                get_sql_lcopy_str,
-                codecs,
-                TaskThreadMock
-            ):
+    def test__start_batch(self,
+                          get_connection,
+                          QueryMock,
+                          get_sql_lcopy_str,
+                          codecs,
+                          TaskThreadMock):
         """
         Test :py:meth:`.VerticaBatch._start_batch`.
         """

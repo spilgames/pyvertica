@@ -189,9 +189,9 @@ class VerticaBatch(object):
     :param multi_batch:
         A ``boolean`` to indicate if the batch should keep it's resources open
         after a call to commit. If you plan to only call
-        :py:meth:`~.VerticaBatch.commit` one time, set this to false. Otherwise,
-        setting ``multi_batch=True`` will prevent the batch from closing all of
-        its resources.
+        :py:meth:`~.VerticaBatch.commit` one time, set this to false.
+        Otherwise, setting ``multi_batch=True`` will prevent the batch from
+        closing all of its resources.
         Default: ``False``. *Optional*.
 
     """
@@ -367,7 +367,6 @@ class VerticaBatch(object):
 
         self._batch_initialized = False
         return ended_clean
-
 
     def _get_num_rejected_rows(self):
         """
