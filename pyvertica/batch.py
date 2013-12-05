@@ -4,7 +4,7 @@ import logging
 import os
 import tempfile
 import threading
-from taskthread import TaskThread
+import taskthread
 from Queue import Queue
 from functools import wraps
 
@@ -280,14 +280,14 @@ class VerticaBatch(object):
         # create rejected file obj
         if self.copy_options_dict['REJECTEDFILE']:
             self._rejected_file_obj = tempfile.NamedTemporaryFile(bufsize=0)
-        self.query = Query(
+        self._query = Query(
             self._cursor,
             self._get_sql_lcopy_str(),
             self._fifo_path,
             self._query_exc_queue,
         )
 
-        self._query_thread = TaskThread(self.query.run_query)
+        self._query_thread = taskthread.TaskThread(self._query.run_query)
 
         # Start the thread so run_task can be called
         self._query_thread.start()
@@ -305,7 +305,6 @@ class VerticaBatch(object):
         self._batch_count = 0
         if not self._batch_initialized:
             self._initialize_batch()
-
 
         self._query_thread.run_task()
 
@@ -337,7 +336,7 @@ class VerticaBatch(object):
             logger.debug('Query task finished')
 
         if not self._multi_batch:
-            ended_clean = self.close_batch() or ended_clean
+            ended_clean = self.close_batch() and ended_clean
 
         self._in_batch = False
         return ended_clean

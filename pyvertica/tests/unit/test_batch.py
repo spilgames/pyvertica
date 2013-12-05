@@ -3,14 +3,14 @@
 import os
 import stat
 import tempfile
-import threading
+from taskthread import TaskThread
 import unittest2 as unittest
 from Queue import Queue
 
 from mock import Mock, patch
 
 from pyvertica.batch import (
-    QueryThread, VerticaBatch, require_started_batch)
+    Query, VerticaBatch, require_started_batch)
 
 
 class RequireStartedBatchDecoratorTestCase(unittest.TestCase):
@@ -47,7 +47,7 @@ class RequireStartedBatchDecoratorTestCase(unittest.TestCase):
         self.assertEqual(0, test_class._start_batch.call_count)
 
 
-class QueryThreadTestCase(unittest.TestCase):
+class QueryTestCase(unittest.TestCase):
     """
     Tests for :py:class:`.QueryThread`.
     """
@@ -57,33 +57,28 @@ class QueryThreadTestCase(unittest.TestCase):
         """
         cursor = Mock()
         sql_query_str = Mock()
-        semaphore_obj = Mock()
         fifo_path = Mock()
         exc_queue = Mock()
 
-        query_thread = QueryThread(
-            cursor, sql_query_str, semaphore_obj, fifo_path, exc_queue)
+        query = Query(
+            cursor, sql_query_str, fifo_path, exc_queue)
 
-        self.assertEqual(cursor, query_thread.cursor)
-        self.assertEqual(sql_query_str, query_thread.sql_query_str)
-        self.assertEqual(semaphore_obj, query_thread.semaphore_obj)
-        self.assertEqual(fifo_path, query_thread.fifo_path)
-        self.assertEqual(exc_queue, query_thread.exc_queue)
+        self.assertEqual(cursor, query.cursor)
+        self.assertEqual(sql_query_str, query.sql_query_str)
+        self.assertEqual(fifo_path, query.fifo_path)
+        self.assertEqual(exc_queue, query.exc_queue)
 
-    def test_run(self):
+    def test_run_query(self):
         """
         Test :py:meth:`.QueryThread.run`.
         """
         cursor = Mock()
         sql_query_str = Mock()
-        semaphore_obj = Mock()
 
-        query_thread = QueryThread(
-            cursor, sql_query_str, semaphore_obj, Mock(), Mock())
-        query_thread.run()
+        query= Query(cursor, sql_query_str, Mock(), Mock())
+        query.run_query()
 
         cursor.execute.assert_called_once_with(sql_query_str)
-        semaphore_obj.release.assert_called_once_with()
 
     def test_run_raising_exception(self):
         """
@@ -92,15 +87,18 @@ class QueryThreadTestCase(unittest.TestCase):
         file_obj = tempfile.NamedTemporaryFile(bufsize=0, delete=False)
         file_obj.write('foo\nbar\n')
         file_obj.close()
-        semaphore_obj = threading.Semaphore(0)
 
         cursor = Mock()
-        cursor.execute.side_effect = Exception('Boom!')
+        cursor.execute.side_effect = Exception('boom!')
         exc_queue = Queue()
 
-        QueryThread(
-            cursor, Mock(), semaphore_obj, file_obj.name, exc_queue).start()
-        semaphore_obj.acquire()
+        query = Query(
+            cursor, Mock(), file_obj.name, exc_queue)
+        task_thread = TaskThread(query.run_query)
+        task_thread.start()
+        task_thread.run_task()
+        task_thread.join_task(2)
+        task_thread.join(2)
 
         os.remove(file_obj.name)
         self.assertTrue(isinstance(exc_queue.get(), Exception))
@@ -207,22 +205,25 @@ class VerticaBatchTestCase(unittest.TestCase):
         batch._cursor.execute.assert_called_once_with(
             'TRUNCATE TABLE schema.test_table')
 
+    @patch('taskthread.TaskThread')
     @patch('pyvertica.batch.codecs')
     @patch('pyvertica.batch.VerticaBatch._get_sql_lcopy_str')
-    @patch('pyvertica.batch.QueryThread')
-    @patch('pyvertica.batch.threading')
+    @patch('pyvertica.batch.Query')
     @patch('pyvertica.batch.get_connection')
     def test__start_batch(
                 self,
                 get_connection,
-                threading,
-                QueryThreadMock,
+                QueryMock,
                 get_sql_lcopy_str,
                 codecs,
+                TaskThreadMock
             ):
         """
         Test :py:meth:`.VerticaBatch._start_batch`.
         """
+        thread = TaskThreadMock.return_value
+        query = QueryMock.return_value
+        query.run_query = Mock()
         batch = self.get_batch()
         batch._batch_count = 10
 
@@ -236,25 +237,22 @@ class VerticaBatchTestCase(unittest.TestCase):
         self.assertTrue(os.path.exists(batch._rejected_file_obj.name))
         codecs.open.assert_called_once_with(batch._fifo_path, 'w', 'utf-8')
         self.assertEqual(codecs.open.return_value, batch._fifo_obj)
+        self.assertTrue(batch._batch_initialized)
 
         # test thread setup
-        threading.Semaphore.assert_called_once_with(0)
-        self.assertEqual(
-            threading.Semaphore.return_value,
-            batch._query_thread_semaphore_obj
-        )
-        QueryThreadMock.assert_called_once_with(
+        self.assertEqual(thread, batch._query_thread)
+        thread.start.assert_called_once_with()
+
+        QueryMock.assert_called_once_with(
             batch._cursor,
             batch._get_sql_lcopy_str.return_value,
-            batch._query_thread_semaphore_obj,
             batch._fifo_path,
             batch._query_exc_queue,
         )
         self.assertEqual(
-            QueryThreadMock.return_value,
-            batch._query_thread
+            QueryMock.return_value,
+            batch._query
         )
-        batch._query_thread.start.assert_called_once_with()
 
     @patch('pyvertica.batch.os.remove')
     @patch('pyvertica.batch.os.rmdir')
@@ -275,7 +273,6 @@ class VerticaBatchTestCase(unittest.TestCase):
         batch = self.get_batch()
         batch._fifo_path = '/tmp/abcd1234/fifo'
         batch._fifo_obj = Mock()
-        batch._query_thread_semaphore_obj = Mock()
         batch._query_thread = query_thread
         batch._query_exc_queue = Mock()
         batch._query_exc_queue.empty.return_value = True
@@ -283,7 +280,6 @@ class VerticaBatchTestCase(unittest.TestCase):
         end_return = batch._end_batch()
 
         batch._fifo_obj.close.assert_called_once_with()
-        batch._query_thread_semaphore_obj.acquire.assert_called_once_with()
 
         query_thread.join.assert_called_once_with(2)
         query_thread.is_alive.assert_called_once_with()
@@ -312,7 +308,6 @@ class VerticaBatchTestCase(unittest.TestCase):
         batch = self.get_batch()
         batch._fifo_path = '/tmp/abcd1234/fifo'
         batch._fifo_obj = Mock()
-        batch._query_thread_semaphore_obj = Mock()
         batch._query_thread = query_thread
         batch._query_exc_queue = Mock()
         batch._query_exc_queue.empty.return_value = True
