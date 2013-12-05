@@ -2,7 +2,7 @@
 argparse
 logutils
 pyodbc
-taskthread
+taskthread>=1.2
 
 
 # Documentation
