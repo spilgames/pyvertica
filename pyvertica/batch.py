@@ -4,6 +4,7 @@ import logging
 import os
 import tempfile
 import threading
+from taskthread import TaskThread
 from Queue import Queue
 from functools import wraps
 
@@ -34,9 +35,9 @@ def require_started_batch(func):
     return inner_func
 
 
-class QueryThread(threading.Thread):
+class Query(object):
     """
-    Thread object which will execute the ``COPY`` query.
+    An object that executes the ``COPY`` query for batch loading.
 
     :param cursor:
         A :py:mod:`!pyodbc` cursor object.
@@ -62,22 +63,21 @@ class QueryThread(threading.Thread):
     """
 
     def __init__(
-            self, cursor, sql_query_str, semaphore_obj, fifo_path, exc_queue):
-        super(QueryThread, self).__init__()
+            self, cursor, sql_query_str, fifo_path, exc_queue):
+        super(Query, self).__init__()
         self.cursor = cursor
         self.sql_query_str = sql_query_str
-        self.semaphore_obj = semaphore_obj
         self.exc_queue = exc_queue
         self.fifo_path = fifo_path
 
-    def run(self):
+    def run_query(self):
         """
         Handle executing the SQL query.
 
-        This method will be called when starting this thread.
+        This method is intended to be called on a task_thread.
 
         """
-        logger.debug('Thread started with SQL statement: {0}'.format(
+        logger.debug('Query started with SQL statement: {0}'.format(
             self.sql_query_str))
         try:
             self.cursor.execute(self.sql_query_str)
@@ -92,8 +92,7 @@ class QueryThread(threading.Thread):
             for line in codecs.open(self.fifo_path, 'r', 'utf-8'):
                 pass
 
-        logger.debug('Thread done')
-        self.semaphore_obj.release()
+        logger.debug('Query done')
 
 
 class VerticaBatch(object):
@@ -144,6 +143,9 @@ class VerticaBatch(object):
         :py:meth:`~.VerticaBatch.commit` the locks are realeased up to next
         insert.
 
+    .. note:: If a batch is created with ``multi_batch = True``,
+        :py:math:`~.VerticaBatch.close_batch` must be explicity called when
+        the batch resources should be closed.
 
     :param table_name:
         A ``str`` representing the table name (including the schema) to write
@@ -183,6 +185,14 @@ class VerticaBatch(object):
         this parameter is supplied, ``odbc_kwargs`` may not be supplied.
         Default: ``None``. *Optional*.
 
+    :param multi_batch:
+        A ``boolean`` to indicate if the batch should keep it's resources open
+        after a call to commit. If you plan to only call
+        :py:meth:`~.VerticaBatch.commit` one time, set this to false. Otherwise,
+        setting ``multi_batch=True`` will prevent the batch from closing all of
+        its resources.
+        Default: ``False``. *Optional*.
+
     """
     copy_options_dict = {
         'DELIMITER': ';',
@@ -211,7 +221,8 @@ class VerticaBatch(object):
             analyze_constraints=True,
             column_list=[],
             copy_options={},
-            connection=None):
+            connection=None,
+            multi_batch=False):
 
         if connection and odbc_kwargs:
             raise ValueError("May only specify one of "
@@ -222,6 +233,8 @@ class VerticaBatch(object):
         self._column_list = column_list
         self._analyze_constraints = analyze_constraints
         self.copy_options_dict.update(copy_options)
+        self._batch_initialized = False
+        self._multi_batch = multi_batch
 
         self._total_count = 0
         self._batch_count = 0
@@ -256,6 +269,30 @@ class VerticaBatch(object):
         logger.info('Truncating table {0}'.format(self._table_name))
         self._cursor.execute('TRUNCATE TABLE {0}'.format(self._table_name))
 
+    def _initialize_batch(self):
+
+        self._query_exc_queue = Queue()
+
+        # create FIFO
+        self._fifo_path = os.path.join(tempfile.mkdtemp(), 'fifo')
+        os.mkfifo(self._fifo_path)
+
+        # create rejected file obj
+        if self.copy_options_dict['REJECTEDFILE']:
+            self._rejected_file_obj = tempfile.NamedTemporaryFile(bufsize=0)
+        self.query = Query(
+            self._cursor,
+            self._get_sql_lcopy_str(),
+            self._fifo_path,
+            self._query_exc_queue,
+        )
+
+        self._query_thread = TaskThread(self.query.run_query)
+
+        # Start the thread so run_task can be called
+        self._query_thread.start()
+        self._batch_initialized = True
+
     def _start_batch(self):
         """
         Start the batch.
@@ -266,26 +303,11 @@ class VerticaBatch(object):
         """
         self._in_batch = True
         self._batch_count = 0
-        self._query_exc_queue = Queue()
+        if not self._batch_initialized:
+            self._initialize_batch()
 
-        # create FIFO
-        self._fifo_path = os.path.join(tempfile.mkdtemp(), 'fifo')
-        os.mkfifo(self._fifo_path)
 
-        # create rejected file obj
-        if self.copy_options_dict['REJECTEDFILE']:
-            self._rejected_file_obj = tempfile.NamedTemporaryFile(bufsize=0)
-
-        # setup query thread
-        self._query_thread_semaphore_obj = threading.Semaphore(0)
-        self._query_thread = QueryThread(
-            self._cursor,
-            self._get_sql_lcopy_str(),
-            self._query_thread_semaphore_obj,
-            self._fifo_path,
-            self._query_exc_queue,
-        )
-        self._query_thread.start()
+        self._query_thread.run_task()
 
         logger.debug('Opening FIFO')
         self._fifo_obj = codecs.open(self._fifo_path, 'w', 'utf-8')
@@ -297,25 +319,45 @@ class VerticaBatch(object):
         """
         End the batch.
 
-        This will remove the FIFO file and stop the :py:class:`.QueryThread`.
+        This waits for the current query to finish, and executes
+        close_batch if multi_batch is false.
 
         """
         ended_clean = True
 
         logger.debug('Closing FIFO')
+        # The Query task will stop when there is nothing writing to
+        # the fifo. This should force the current task to end.
         self._fifo_obj.close()
 
-        logger.debug('Waiting for thread to finish')
-        self._query_thread_semaphore_obj.acquire()
-        logger.debug('Thread finished')
+        logger.debug('Waiting for COPY Query to finish')
+        if not self._query_thread.join_task(2):
+            logger.warn('Error shutting down task thread!')
+        else:
+            logger.debug('Query task finished')
 
+        if not self._multi_batch:
+            ended_clean = self.close_batch() or ended_clean
+
+        self._in_batch = False
+        return ended_clean
+
+
+    def close_batch(self):
+        """
+        Close out the batch.
+
+        This will remove the FIFO file and stop the :py:class:`.TaskThread`.
+
+        """
+
+        ended_clean = True
         logger.debug('Terminating thread')
         self._query_thread.join(2)
         if self._query_thread.is_alive():
             ended_clean = False
             logging.error('Terminating thread timed out!')
 
-        self._in_batch = False
         os.remove(self._fifo_path)
         os.rmdir(os.path.dirname(self._fifo_path))
 
@@ -324,7 +366,9 @@ class VerticaBatch(object):
         if not self._query_exc_queue.empty():
             raise self._query_exc_queue.get()
 
+        self._batch_initialized = False
         return ended_clean
+
 
     def _get_num_rejected_rows(self):
         """
