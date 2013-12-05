@@ -417,6 +417,35 @@ class VerticaBatch(object):
 
         return output_str
 
+    def _single_list_to_string(self,
+                               value_list,
+                               suffix=None):
+        """
+        Convert a single ``iterable`` to a string that represents one item
+        in the batch.
+
+        :param value_list:
+            An ``iterable``. Each item represents one column value
+
+        :param suffix:
+            A ``string``. If specified, this character will be appended
+            to the resulting string.
+        """
+        enclosed_by = self.copy_options_dict['ENCLOSED BY']
+        escaped_enclosed_by = '\\%s' % enclosed_by
+        suffix = suffix if suffix else ''
+        delimiter = self.copy_options_dict['DELIMITER']
+
+        str_value_list = (
+            '%s%s%s' % (
+                enclosed_by,
+                unicode(value).replace(enclosed_by, escaped_enclosed_by),
+                enclosed_by
+            )
+            if value is not None else '' for value in value_list)
+
+        return delimiter.join(str_value_list) + suffix
+
     def insert_list(self, value_list):
         """
         Insert a ``list`` of values (instead of a ``str`` representing a line).
@@ -429,21 +458,37 @@ class VerticaBatch(object):
             A ``list``. Each item should represent a column value.
 
         """
-        enclosed_by = self.copy_options_dict['ENCLOSED BY']
-        escaped_enclosed_by = '\\%s' % enclosed_by
+        return self.insert_line(self._single_list_to_string(value_list))
 
-        str_value_list = [
-            '%s%s%s' % (
-                enclosed_by,
-                unicode(value).replace(enclosed_by, escaped_enclosed_by),
-                enclosed_by
-            )
-            if value is not None
-            else '' for value in value_list]
+    @require_started_batch
+    def insert_lists(self, value_lists, row_count=1):
+        """
+        Insert an ``iterable`` of ``iterable`` values (instead of a single
+        string). The iterables can be lists, generators, etc.
 
-        insert_str = self.copy_options_dict['DELIMITER'].join(str_value_list)
+        Example::
 
-        return self.insert_line(insert_str)
+            batch.insert_lists([['key1', 'value1'], ['key2', 'value2']))
+
+        :param value_lists:
+            An ``iterable``. Each iterable is another ``iterable`` containing
+            the values to insert.
+
+        :param row_count:
+            An ``int``. The number of rows being inserted. Since the
+            ``value_lists`` parameter may be a generator, the number of
+            rows is not easily determinable. Therefore, the number of
+            rows being inserted must be specified.
+        """
+        suffix = self.copy_options_dict['RECORD TERMINATOR']
+        strings = (self._single_list_to_string(value_list,
+                                               suffix=suffix)
+                   for value_list in value_lists)
+        self._fifo_obj.write(
+            "".join(strings)
+        )
+        self._total_count += row_count
+        self._batch_count += row_count
 
     @require_started_batch
     def insert_line(self, line_str):
