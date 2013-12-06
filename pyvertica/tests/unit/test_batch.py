@@ -92,8 +92,7 @@ class QueryTestCase(unittest.TestCase):
         cursor.execute.side_effect = Exception('boom!')
         exc_queue = Queue()
 
-        query = Query(
-            cursor, Mock(), file_obj.name, exc_queue)
+        query = Query(cursor, Mock(), file_obj.name, exc_queue)
         task_thread = TaskThread(query.run_query)
         task_thread.start()
         task_thread.run_task()
