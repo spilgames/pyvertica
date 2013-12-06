@@ -115,17 +115,17 @@ class VerticaMigrator(object):
             source_db = self._source.execute(
                 'SELECT CURRENT_DATABASE').fetchone()[0]
             if target_db == source_db:
-                raise VerticaMigratorError(
-                    "Source and target database are the same. Will stop here."
-                    )
+                raise VerticaMigratorError("Source and target database are "
+                                           "the same. Will stop here.")
             else:
                 logger.info('Copying inside the same server to another DB.')
 
         # let's not copy over a not empty database
-        is_target_empty = self._target.execute(
-            "SELECT count(*) FROM tables "
-            "WHERE is_system_table=false AND is_temp_table=false"
-            ).fetchone()[0]
+        is_target_empty = self._target.execute("SELECT count(*) "
+                                               "FROM tables WHERE "
+                                               "is_system_table=false "
+                                               "AND is_temp_table="
+                                               "false").fetchone()[0]
 
         if is_target_empty > 0:
             if ('even_not_empty' in self._kwargs and
@@ -279,10 +279,10 @@ class VerticaMigrator(object):
             """.format(schema=schema, table=table)).fetchone()[0]
 
         # get current seq value
-        max_seq = self._source.execute(
-            'SELECT MAX({col}) FROM {schema}.{table}'.format(
-                schema=schema, table=table, col=col)
-            ).fetchone()[0]
+        max_seq = self._source.execute('SELECT MAX({col})FROM {schema}.'
+                                       '{table}'.format(schema=schema,
+                                                        table=table,
+                                                        col=col)).fetchone()[0]
 
         if max_seq is None:
             max_seq = 0
@@ -512,23 +512,22 @@ class VerticaMigrator(object):
                 errors.append(ddl)
 
             if new_seq is not None:
-                create = ('CREATE SEQUENCE {schema}.{name} '
-                          'START WITH {start}').format(
-                    schema=new_seq['schema'],
-                    name=new_seq['name'],
-                    start=new_seq['start']
-                    )
+                create = ('CREATE SEQUENCE {schema}.{name} START WITH '
+                          '{start}').format(schema=new_seq['schema'],
+                                            name=new_seq['name'],
+                                            start=new_seq['start'])
                 logger.info(create)
 
                 count += 1
                 self._exec_ddl(create)
 
-                alter = ("ALTER TABLE {schema}.{table} ALTER COLUMN {col} "
-                         "SET DEFAULT NEXTVAL('{schema}.{name}')").format(
-                    schema=new_seq['schema'],
-                    name=new_seq['name'],
-                    table=new_seq['table'],
-                    col=new_seq['col'])
+                alter = ("ALTER TABLE {schema}.{table} "
+                         "ALTER COLUMN {col} "
+                         "SET DEFAULT NEXTVAL('{schema}.{name}'"
+                         ")").format(schema=new_seq['schema'],
+                                     name=new_seq['name'],
+                                     table=new_seq['table'],
+                                     col=new_seq['col'])
                 logger.info(alter)
 
                 count += 1
