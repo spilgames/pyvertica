@@ -115,21 +115,21 @@ class VerticaMigrator(object):
             source_db = self._source.execute(
                 'SELECT CURRENT_DATABASE').fetchone()[0]
             if target_db == source_db:
-                raise VerticaMigratorError(
-                    "Source and target database are the same. Will stop here."
-                    )
+                raise VerticaMigratorError("Source and target database are "
+                                           "the same. Will stop here.")
             else:
                 logger.info('Copying inside the same server to another DB.')
 
         # let's not copy over a not empty database
-        is_target_empty = self._target.execute(
-            "SELECT count(*) FROM tables "
-            "WHERE is_system_table=false AND is_temp_table=false"
-            ).fetchone()[0]
+        is_target_empty = self._target.execute("SELECT count(*) "
+                                               "FROM tables WHERE "
+                                               "is_system_table=false "
+                                               "AND is_temp_table="
+                                               "false").fetchone()[0]
 
         if is_target_empty > 0:
-            if ('even_not_empty' in self._kwargs
-                and self._kwargs['even_not_empty']):
+            if ('even_not_empty' in self._kwargs and
+                    self._kwargs['even_not_empty']):
                 logger.info('Target DB not empty but copy anyway.')
             else:
                 raise VerticaMigratorError("Target vertica is not empty.")
@@ -279,10 +279,10 @@ class VerticaMigrator(object):
             """.format(schema=schema, table=table)).fetchone()[0]
 
         # get current seq value
-        max_seq = self._source.execute(
-            'SELECT MAX({col}) FROM {schema}.{table}'.format(
-                schema=schema, table=table, col=col)
-            ).fetchone()[0]
+        max_seq = self._source.execute('SELECT MAX({col})FROM {schema}.'
+                                       '{table}'.format(schema=schema,
+                                                        table=table,
+                                                        col=col)).fetchone()[0]
 
         if max_seq is None:
             max_seq = 0
@@ -327,7 +327,8 @@ class VerticaMigrator(object):
         """
         # basic sql
         tables_sql = ("SELECT table_schema as s, table_name as t "
-        "FROM tables WHERE is_system_table=false AND is_temp_table=false")
+                      "FROM tables WHERE is_system_table=false AND "
+                      "is_temp_table=false")
         # extra where clause to find only specific tables
         where = []
         if len(objects) == 0:
@@ -401,8 +402,8 @@ class VerticaMigrator(object):
                 self._target.execute(ddl)
             except pyodbc.ProgrammingError as e:
                 # 42601: table, 42710: seq
-                if (e.args[0] in ['42601', '42710']
-                    and self._kwargs['clever_ddls']):
+                if (e.args[0] in ['42601', '42710'] and
+                        self._kwargs['clever_ddls']):
                     logger.info('DDL already exists, skip: {0}'.format(
                         ddl.split('\n', 1)[0]))
                 else:
@@ -458,7 +459,7 @@ class VerticaMigrator(object):
                     last_error = len(errors)
                     logging.warning(
                         '{nb} DDL migration errors, retrying them.'.format(
-                        nb=last_error))
+                            nb=last_error))
                     ddls.extend(errors)
                     errors = []
                 else:
@@ -511,23 +512,22 @@ class VerticaMigrator(object):
                 errors.append(ddl)
 
             if new_seq is not None:
-                create = ('CREATE SEQUENCE {schema}.{name} '
-                'START WITH {start}').format(
-                    schema=new_seq['schema'],
-                    name=new_seq['name'],
-                    start=new_seq['start']
-                    )
+                create = ('CREATE SEQUENCE {schema}.{name} START WITH '
+                          '{start}').format(schema=new_seq['schema'],
+                                            name=new_seq['name'],
+                                            start=new_seq['start'])
                 logger.info(create)
 
                 count += 1
                 self._exec_ddl(create)
 
-                alter = ("ALTER TABLE {schema}.{table} ALTER COLUMN {col} "
-                "SET DEFAULT NEXTVAL('{schema}.{name}')").format(
-                    schema=new_seq['schema'],
-                    name=new_seq['name'],
-                    table=new_seq['table'],
-                    col=new_seq['col'])
+                alter = ("ALTER TABLE {schema}.{table} "
+                         "ALTER COLUMN {col} "
+                         "SET DEFAULT NEXTVAL('{schema}.{name}'"
+                         ")").format(schema=new_seq['schema'],
+                                     name=new_seq['name'],
+                                     table=new_seq['table'],
+                                     col=new_seq['col'])
                 logger.info(alter)
 
                 count += 1
@@ -600,8 +600,9 @@ class VerticaMigrator(object):
                 # but we cannot do anything with it
                 row = self._source.fetchone()
         else:
-            raise VerticaMigratorError(("Connection type from source to target"
-                " not 'odbc' or 'direct' but: '{0}'.").format(con_type))
+            raise VerticaMigratorError(("Connection type from source"
+                                        " to target not 'odbc' or 'direct'"
+                                        " but: '{0}'.").format(con_type))
 
         logger.info('{nb} rows exported'.format(nb=nbrows))
 
@@ -638,9 +639,9 @@ class VerticaMigrator(object):
                         con_type, tname, target_details)
                 except pyodbc.ProgrammingError as e:
                     errors.append(tname)
-                    logger.error('Something went wrong during data copy for '
-                        'table {t}. Waiting 2 minutes to resume'.format(
-                            t=tname))
+                    logger.error('Something went wrong during '
+                                 'data copy for table {t}. Waiting 2 '
+                                 'minutes to resume'.format(t=tname))
                     logger.error("{c}: {t}".format(c=e.args[0], t=e.args[1]))
                     # wait a few minutes in case the cluster comes back to life
                     time.sleep(120)
@@ -650,7 +651,7 @@ class VerticaMigrator(object):
 
         except Exception as e:
             logger.error('Something went very wrong during data copy '
-                'for table {t}.'.format(t=tname))
+                         'for table {t}.'.format(t=tname))
             errors.append(tname)
             for t in tables:
                 errors.append('{s}.{t} '.format(s=t[0], t=t[1]))

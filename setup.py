@@ -25,5 +25,6 @@ setup(
         'argparse',
         'logutils',
         'pyodbc',
+        'taskthread>=1.2'
     ]
 )
