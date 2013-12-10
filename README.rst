@@ -47,6 +47,12 @@ Links
 Changes
 -------
 
+v1.6.1
+~~~~~~
+
+* **UPDATE** ``TaskThread`` requred version to 1.3 or greater.
+
+
 v1.6.0
 ~~~~~~
 
