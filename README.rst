@@ -47,11 +47,16 @@ Links
 Changes
 -------
 
+v1.6.2
+~~~~~~
+
+* **CHANGE** Add argument pointing to a credential file
+  for ``scripts/vertica_batch_import`` (to not expose credential in bash history).
+
 v1.6.1
 ~~~~~~
 
 * **UPDATE** ``TaskThread`` requred version to 1.3 or greater.
-
 
 v1.6.0
 ~~~~~~
@@ -75,7 +80,6 @@ v1.5.2
 
 * **ADD**: ``connection`` paratmeter to ``VerticaBatch`` to allow usage of
   an existing connection.
-
 
 v1.5.1
 ~~~~~~
