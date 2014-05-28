@@ -3,6 +3,7 @@
 import argparse
 import codecs
 import logging
+import ConfigParser
 
 from logutils.dictconfig import dictConfig
 
@@ -80,6 +81,14 @@ parser.add_argument(
     help='ODBC data source name',
 )
 parser.add_argument(
+    '--connection',
+    dest='config_file',
+    default=None,
+    required=False,
+    type=str,
+    help='Absolute path to config.ini containing vertica credentials (dsn, user, password).'
+)
+parser.add_argument(
     'table_name',
     type=str,
     help='name of table (including schema, eg: staging.my_table)',
@@ -120,7 +129,6 @@ def setup_log_handler(args_obj):
         }
     })
 
-
 def handle_import(args_obj):
     """
     Handle the batch import.
@@ -137,8 +145,18 @@ def handle_import(args_obj):
         truncate_table = False
 
     try:
+        odbc_kwargs = {'dsn': args_obj.dsn}
+        if args_obj.config_file:
+            config = ConfigParser.SafeConfigParser({
+                'dsn': args_obj.dsn,
+                'user': '',
+                'password': '',
+            })
+            config.read(args_obj.config_file)
+            odbc_kwargs = dict(config.items('pyvertica_odbc'))
+
         batch = VerticaBatch(
-            odbc_kwargs={'dsn': args_obj.dsn},
+            odbc_kwargs=odbc_kwargs,
             table_name=args_obj.table_name,
             truncate_table=truncate_table,
             copy_options={
